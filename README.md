@@ -1,6 +1,6 @@
 # PotemkinBench
 
-A [verifiers](https://github.com/PrimeIntellect-ai/verifiers) v1 RL environment (formerly `letter-vs-intent`) that asks:
+A [verifiers](https://github.com/PrimeIntellect-ai/verifiers) v1 RL environment that asks:
 **does the agent actually do the job, or just say it did?** Multi-step back-office tasks (collections,
 refunds, restocking, dedupe, month-end close, payroll) run against a mock database and email, scored on
 the true end state, with false success (claimed done, wasn't) measured directly.

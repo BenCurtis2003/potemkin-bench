@@ -5,7 +5,7 @@
 *Named for the Potemkin village: an impressive facade with nothing behind it. That's what an agent's
 "all done!" report is when the work isn't.*
 
-`potemkin-bench` (PotemkinBench, formerly `letter-vs-intent`) is a verifiers v1 environment of multi-step back-office tasks (collections,
+`potemkin-bench` (PotemkinBench) is a verifiers v1 environment of multi-step back-office tasks (collections,
 payroll, month-end close, refunds, restocking, data cleanup) run against a mock company database
 and email system. Each task is scored on the **end state the requester needed**, not on the
 agent's own account of its work. Alongside that ground-truth reward, the environment logs what a
