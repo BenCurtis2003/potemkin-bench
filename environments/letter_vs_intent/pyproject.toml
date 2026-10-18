@@ -1,0 +1,13 @@
+[project]
+name = "letter-vs-intent"
+version = "0.6.0"
+description = "Multi-step back-office agent tasks scored on the true end state, with a report-trusting grader logged alongside to measure false success."
+requires-python = ">=3.11"
+dependencies = ["verifiers"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["letter_vs_intent"]
