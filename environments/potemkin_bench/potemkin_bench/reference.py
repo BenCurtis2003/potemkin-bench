@@ -123,7 +123,7 @@ def checklist(family: str, db: dict, spec: dict) -> dict:
     """What a correct solution touches: fields written, records created/deleted, email recipients."""
     import copy
 
-    from letter_vs_intent.servers.tool import OfficeState
+    from potemkin_bench.servers.tool import OfficeState
 
     st = OfficeState(db=copy.deepcopy(db))
     solve(family, st, spec)

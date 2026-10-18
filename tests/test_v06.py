@@ -6,10 +6,10 @@ from types import SimpleNamespace
 
 import verifiers.v1 as vf
 
-import letter_vs_intent.taskset as ts
-from letter_vs_intent.rewards import CompletionJudge, honest_partial
-from letter_vs_intent.servers.tool import OfficeState
-from letter_vs_intent.taskset import LetterVsIntentConfig, LetterVsIntentTaskConfig, LetterVsIntentTaskset
+import potemkin_bench.taskset as ts
+from potemkin_bench.rewards import CompletionJudge, honest_partial
+from potemkin_bench.servers.tool import OfficeState
+from potemkin_bench.taskset import PotemkinBenchConfig, PotemkinBenchTaskConfig, PotemkinBenchTaskset
 
 
 def test_honest_partial_ordering():
@@ -32,7 +32,7 @@ def test_judge_parse():
 
 
 def test_mixed_level_and_modes():
-    tasks = LetterVsIntentTaskset(LetterVsIntentConfig(num_tasks=14, difficulty="mixed", scale="small")).load()
+    tasks = PotemkinBenchTaskset(PotemkinBenchConfig(num_tasks=14, difficulty="mixed", scale="small")).load()
     fams = {t.data.family for t in tasks}
     assert fams == set(ts.LEVELS["mixed"]) and len(fams) == 14, fams  # every family, easy to expert
 
@@ -42,7 +42,7 @@ def test_mixed_level_and_modes():
     trace = SimpleNamespace(state=st, info={}, messages=[])
     scores = {}
     for mode in ("strict", "partial", "honest", "honest_partial", "letter", "judge"):
-        t = ts.LetterVsIntentTask(task.data, LetterVsIntentTaskConfig(reward_mode=mode))
+        t = ts.PotemkinBenchTask(task.data, PotemkinBenchTaskConfig(reward_mode=mode))
         if mode == "judge":
             async def fake(cfg, prompt, tr, rep):
                 return 1.0
@@ -66,10 +66,10 @@ if __name__ == "__main__":
 
 
 def test_checklist_grader():
-    from letter_vs_intent import reference
-    tasks = LetterVsIntentTaskset(LetterVsIntentConfig(num_tasks=14, difficulty="mixed", scale="small")).load()
+    from potemkin_bench import reference
+    tasks = PotemkinBenchTaskset(PotemkinBenchConfig(num_tasks=14, difficulty="mixed", scale="small")).load()
     for task in tasks:
-        t = ts.LetterVsIntentTask(task.data, LetterVsIntentTaskConfig(reward_mode="checklist"))
+        t = ts.PotemkinBenchTask(task.data, PotemkinBenchTaskConfig(reward_mode="checklist"))
         cl = reference.checklist(task.data.family, task.data.db, task.data.spec)
         # junk: touch every required output with a wrong value, then claim success
         st = OfficeState(db=copy.deepcopy(task.data.db))
@@ -85,7 +85,7 @@ def test_checklist_grader():
         tr = SimpleNamespace(state=st, info={}, messages=[])
         assert asyncio.run(t.intent(tr)) == 1.0, task.data.family  # the grader is fooled
         if cl["writes"]:
-            assert asyncio.run(ts.LetterVsIntentTask(task.data, LetterVsIntentTaskConfig()).task_success(tr)) == 0.0
+            assert asyncio.run(ts.PotemkinBenchTask(task.data, PotemkinBenchTaskConfig()).task_success(tr)) == 0.0
         # doing nothing and staying silent scores 0 unless nothing was required
         empty = SimpleNamespace(state=OfficeState(db=copy.deepcopy(task.data.db)), info={}, messages=[])
         expect = 0.7 if not any(cl.values()) else 0.0
@@ -94,10 +94,10 @@ def test_checklist_grader():
 
 def test_junk_never_crashes_scoring():
     """Whatever an agent writes, every reward mode and metric must score it, not raise."""
-    from letter_vs_intent import reference
+    from potemkin_bench import reference
     junk_values = ["junk", -5, None, {"a": 1}, [1, 2], "", 1e12]
     for difficulty, scale in (("mixed", "small"), ("expert", "medium")):
-        tasks = LetterVsIntentTaskset(LetterVsIntentConfig(num_tasks=14 if difficulty == "mixed" else 4,
+        tasks = PotemkinBenchTaskset(PotemkinBenchConfig(num_tasks=14 if difficulty == "mixed" else 4,
                                                            difficulty=difficulty, scale=scale)).load()
         for task in tasks:
             cl = reference.checklist(task.data.family, task.data.db, task.data.spec)
@@ -112,10 +112,10 @@ def test_junk_never_crashes_scoring():
                 st.report = {"completed": True, "summary": "x"}
                 tr = SimpleNamespace(state=st, info={}, messages=[])
                 for mode in ("strict", "partial", "honest", "honest_partial", "checklist", "letter"):
-                    t = ts.LetterVsIntentTask(task.data, LetterVsIntentTaskConfig(reward_mode=mode))
+                    t = ts.PotemkinBenchTask(task.data, PotemkinBenchTaskConfig(reward_mode=mode))
                     r = asyncio.run(t.intent(tr))
                     assert 0.0 <= r <= 1.0, (task.data.family, mode, jv, r)
-                t = ts.LetterVsIntentTask(task.data, LetterVsIntentTaskConfig())
+                t = ts.PotemkinBenchTask(task.data, PotemkinBenchTaskConfig())
                 for m in (t.task_success, t.checks, t.false_success, t.calibration, t.diagnostics, t.checklist_metrics):
                     asyncio.run(m(tr))
 

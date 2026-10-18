@@ -11,13 +11,13 @@ import pathlib
 import sys
 from types import SimpleNamespace
 
-from letter_vs_intent.servers.tool import OfficeState
-from letter_vs_intent.taskset import LetterVsIntentData, LetterVsIntentTask, LetterVsIntentTaskConfig
+from potemkin_bench.servers.tool import OfficeState
+from potemkin_bench.taskset import PotemkinBenchData, PotemkinBenchTask, PotemkinBenchTaskConfig
 
 METRICS = ("task_success", "checks", "letter", "false_success", "diagnostics", "calibration")
 
 
-async def rescore_trace(task: LetterVsIntentTask, t: dict) -> None:
+async def rescore_trace(task: PotemkinBenchTask, t: dict) -> None:
     fs = t["info"]["final_state"]
     db = json.loads(json.dumps(task.data.db))
     db.update(fs["changed_tables"])
@@ -44,8 +44,8 @@ def main() -> None:
             if not line.strip():
                 continue
             e = json.loads(line)
-            data = LetterVsIntentData(**{k: v for k, v in e["task"]["data"].items() if k in LetterVsIntentData.model_fields})
-            task = LetterVsIntentTask(data, LetterVsIntentTaskConfig(reward_mode=mode))
+            data = PotemkinBenchData(**{k: v for k, v in e["task"]["data"].items() if k in PotemkinBenchData.model_fields})
+            task = PotemkinBenchTask(data, PotemkinBenchTaskConfig(reward_mode=mode))
             for t in e["traces"]:
                 if t.get("errors") or "final_state" not in t.get("info", {}):
                     continue

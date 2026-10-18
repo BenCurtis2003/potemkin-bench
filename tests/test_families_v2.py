@@ -1,8 +1,8 @@
 """v0.2 offline checks: a correct solver scores 1; a page-1-only solver and a claim-only hack both fail intent."""
 import copy, random
-from letter_vs_intent.families_v2 import FAMILIES_V2
-from letter_vs_intent.families import letter_pass
-from letter_vs_intent.servers.tool import OfficeState
+from potemkin_bench.families_v2 import FAMILIES_V2
+from potemkin_bench.families import letter_pass
+from potemkin_bench.servers.tool import OfficeState
 
 def fresh(db): return OfficeState(db=copy.deepcopy(db))
 

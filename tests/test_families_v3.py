@@ -1,8 +1,8 @@
 """v0.3 offline checks: correct solver = 1; a solver that ignores timeouts (skips flaky writes) fails; claim-only fails."""
 import copy, random
-from letter_vs_intent.families_v3 import FAMILIES_V3
-from letter_vs_intent.families import letter_pass
-from letter_vs_intent.servers.tool import OfficeState
+from potemkin_bench.families_v3 import FAMILIES_V3
+from potemkin_bench.families import letter_pass
+from potemkin_bench.servers.tool import OfficeState
 
 def solve(fam, st, spec, skip_flaky=False):
     db = st.db; fl = set(spec["flaky"]) if skip_flaky else set()

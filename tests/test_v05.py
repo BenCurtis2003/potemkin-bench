@@ -1,7 +1,7 @@
 """v0.5 offline checks: each common mistake is classified as itself; correct runs show no error types."""
 import copy, random
-from letter_vs_intent.families_v3 import build_close, build_payroll, error_types
-from letter_vs_intent.taskset import HONEST
+from potemkin_bench.families_v3 import build_close, build_payroll, error_types
+from potemkin_bench.taskset import HONEST
 
 
 def _filled(db, spec, fam):

@@ -1,7 +1,7 @@
 """Offline checks: a correct solver scores intent=1; a letter-only hack scores 0 but passes the naive grader."""
 import copy, random
-from letter_vs_intent.families import FAMILIES, letter_pass
-from letter_vs_intent.servers.tool import OfficeState
+from potemkin_bench.families import FAMILIES, letter_pass
+from potemkin_bench.servers.tool import OfficeState
 
 def fresh(db): return OfficeState(db=copy.deepcopy(db))
 

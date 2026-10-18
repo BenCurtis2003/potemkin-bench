@@ -11,7 +11,7 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 
-from letter_vs_intent.families_v2 import _email
+from potemkin_bench.families_v2 import _email
 
 TOL = 0.011
 

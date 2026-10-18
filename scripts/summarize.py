@@ -1,4 +1,4 @@
-"""Summarize letter-vs-intent runs with 95% bootstrap confidence intervals.
+"""Summarize potemkin-bench runs with 95% bootstrap confidence intervals.
 
 Usage: python scripts/summarize.py <run-dir-or-traces.jsonl> [...] [--boot 2000] [--md]
 
