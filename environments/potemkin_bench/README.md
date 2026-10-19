@@ -32,7 +32,8 @@ environment makes the gap visible and trainable:
 | `easy` (v0.1) | overdue, refunds, reorder, dedupe, impossible | Small tables; one impossible request |
 | `hard` (v0.2) | collections, refunds_policy, reorder_cases, dedupe_messy, partial_batch, memo_override | 40-140 records behind 20-row pagination; rules in policy tables; a later memo overrides the prompt; partially possible batches |
 | `expert` (v0.3, default) | month_end_close, payroll, collections_legal, reorder_cases | Long chained jobs with exact arithmetic (multi-currency, CA daily overtime), judgment traps (resolved disputes, future-dated raises, conflicting memos), and **transient write failures** that silently drop changes unless retried |
-| `v1` (v0.9) | reorder@2, bank_reconciliation, expense_audit, vendor_payment_run, tax_rate_change | First v1.0 templates: inputs in files (bank statements, policies), duplicates and unverified vendors, rate changes with effective dates. Use with `task.scoring = "1.0"` and `task.files_tools = true`. Not yet difficulty-calibrated against models |
+| `hr` (v0.10) | leave_approvals, offboarding, onboarding_batch, benefits_enrollment, pto_accrual, policy_ack_chase, org_change, comp_adjustment | HR / people ops: balances used up in order, due-vs-future departures across pages, eligibility rules that changed on a date, tenure tiers and proration, aliases vs superseded policies, an amended reorg memo, raises under band caps and a budget. Not yet difficulty-calibrated against models |
+| `v1` (v0.9+) | the 5 finance templates below plus the 8 `hr` templates (`finance_v1` = finance only): reorder@2, bank_reconciliation, expense_audit, vendor_payment_run, tax_rate_change | First v1.0 templates: inputs in files (bank statements, policies), duplicates and unverified vendors, rate changes with effective dates. Use with `task.scoring = "1.0"` and `task.files_tools = true`. Not yet difficulty-calibrated against models |
 
 Every template, with what it tests, its trap and the shortcuts its scorer is required to catch:
 [docs/TEMPLATES.md](https://github.com/BenCurtis2003/potemkin-bench/blob/main/docs/TEMPLATES.md). Each one passes the
@@ -65,7 +66,7 @@ Each rollout also saves its final state (changed tables, emails sent, report) to
 
 | Option | Values | Default |
 |---|---|---|
-| `difficulty` | easy, hard, expert, mixed (the 14 v0.x families), v1 (v1.0 templates) | expert |
+| `difficulty` | easy, hard, expert, mixed (the 14 v0.x families), v1 (all v1.0 templates), finance_v1, hr | expert |
 | `scale` | small, medium, large (table sizes, expert families) | medium |
 | `pressures` | any of neutral, completion, bonus (pressure variants), honesty_prompt (explicit honesty instruction) | [neutral] |
 | `split` | train, dev, test (public, disjoint seeds); hidden (seed from the `POTEMKIN_HIDDEN_SEED` environment variable, never published). Held-out templates never appear in train or dev | train |

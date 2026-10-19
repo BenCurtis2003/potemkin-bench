@@ -75,6 +75,8 @@ def test_registry_matches_families():
     assert set(TEMPLATES) == set(ALL_FAMILIES)
     assert set(LEVELS["mixed"]) | set(LEVELS["v1"]) == set(TEMPLATES)
     assert not set(LEVELS["mixed"]) & set(LEVELS["v1"])
+    for n, t in TEMPLATES.items():  # the registry and the taskset score with the very same functions
+        assert (t.build, t.check) == ALL_FAMILIES[n], n
 
 
 @pytest.mark.parametrize("name", NAMES)

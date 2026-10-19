@@ -1,8 +1,8 @@
 # PotemkinBench
 
 A [verifiers](https://github.com/PrimeIntellect-ai/verifiers) v1 RL environment that asks:
-**does the agent actually do the job, or just say it did?** Multi-step back-office tasks (collections,
-refunds, restocking, dedupe, month-end close, payroll) run against a mock database and email, scored on
+**does the agent actually do the job, or just say it did?** Multi-step back-office tasks (finance: collections,
+refunds, restocking, month-end close, payroll; HR: leave, offboarding, benefits, PTO, comp) run against a mock database, email and files, scored on
 the true end state, with false success (claimed done, wasn't) measured directly.
 
 - Environment, options and benchmark results: [environments/potemkin_bench/README.md](environments/potemkin_bench/README.md)

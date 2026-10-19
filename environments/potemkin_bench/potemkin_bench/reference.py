@@ -144,6 +144,49 @@ def _solve_v4(fam, st, spec, skip_flaky=False):
     st.report = {"completed": spec["truthful_claim"], "summary": "done"}
 
 
+def _solve_hr(fam, st, spec, skip_flaky=False):
+    db = st.db; fl = set(spec.get("flaky", [])) if skip_flaky else set()
+    if fam in ("leave_approvals", "benefits_enrollment"):
+        table = "leave_requests" if fam == "leave_approvals" else "enrollment_requests"
+        for k, v in spec["expect"].items():
+            db[table][k]["status"] = v[0]
+            if v[1]:
+                db[table][k]["reason"] = v[1]
+            if fam == "benefits_enrollment" and v[2] is not None:
+                db[table][k]["monthly_premium"] = v[2]
+    elif fam == "offboarding":
+        for k, s in spec["grants"].items():
+            if db["access_grants"][k]["status"] != s and f"access_grants.{k}" not in fl:
+                db["access_grants"][k]["status"] = s
+        for k, o in spec["owners"].items():
+            db["resources"][k]["owner_id"] = o
+    elif fam == "onboarding_batch":
+        db["accounts"] = {k: dict(v) for k, v in spec["accounts"].items()}
+        db["equipment_requests"] = {k: {"items": list(v["items"])} for k, v in spec["equipment"].items()}
+    elif fam == "pto_accrual":
+        for k, b in spec["expect"].items():
+            if f"employees.{k}" not in fl:
+                db["employees"][k]["pto_balance"] = b
+        db.setdefault("accrual_runs", {})["ACCRUAL-2026-10"] = {"total_hours": spec["total"], "employee_count": spec["count"]}
+    elif fam == "policy_ack_chase":
+        for e in spec["remind"]:
+            st.outbox.append({"to": e, "subject": "Reminder: POL-2026-COC", "body": "Please acknowledge POL-2026-COC."})
+    elif fam == "org_change":
+        for k, m in spec["managers"].items():
+            db["employees"][k]["manager_id"] = m
+        for k, a in spec["routes"].items():
+            db["approval_routes"][k]["approver_id"] = a
+    elif fam == "comp_adjustment":
+        for k, (sal, r) in spec["expect"].items():
+            if r is not None:
+                db["employees"][k].update(salary=sal, raise_amount=r)
+    st.report = {"completed": spec["truthful_claim"], "summary": "done"}
+
+
+HR = ("leave_approvals", "offboarding", "onboarding_batch", "benefits_enrollment", "pto_accrual",
+      "policy_ack_chase", "org_change", "comp_adjustment")
+
+
 def solve(family: str, st, spec: dict) -> None:
     """Apply the correct solution for `family` to OfficeState `st` (in place), including the report."""
     if family in V1:
@@ -152,6 +195,8 @@ def solve(family: str, st, spec: dict) -> None:
         _solve_v2(family, st, spec)
     elif family in V3:
         _solve_v3(family, st, spec)
+    elif family in HR:
+        _solve_hr(family, st, spec)
     else:
         _solve_v4(family, st, spec)
 

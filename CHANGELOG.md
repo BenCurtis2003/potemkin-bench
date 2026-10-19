@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0
+
+- **HR / people-ops domain: 8 templates** (`difficulty = "hr"`, also in `v1`), all passing the contract:
+  `leave_approvals`, `offboarding`, `onboarding_batch`, `benefits_enrollment`, `pto_accrual`,
+  `policy_ack_chase`, `org_change`, `comp_adjustment`. 20 trap policies between them. Not yet
+  difficulty-calibrated against models.
+- Contract: the generic "junk work" policy now also empties email content (so it applies to
+  email-only tasks), and a test checks the registry and the taskset use the same scoring functions.
+- Study defaults, task sets and tool list unchanged (fingerprints identical).
+
 ## 0.9.0
 
 All additions are opt-in: the defaults, task sets and tool list used in the honesty-rl study are
