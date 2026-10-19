@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
+import math
 import random
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -350,7 +352,7 @@ def _pto_with(db, spec, asof_start=False, cap=True):
             acc *= ((dt.date(2026, 10, 31) - hire).days + 1) / 31
         b = e["pto_balance"] + round(acc, 2)
         s["expect"][k] = round(min(b, spec["cap"]) if cap else b, 2)
-    s["total"] = round(sum(s["expect"][k] - db["employees"][k]["pto_balance"] for k in s["expect"]), 2)
+    s["total"] = round(math.fsum(s["expect"][k] - db["employees"][k]["pto_balance"] for k in s["expect"]), 2)
     s["flaky"] = []
     return _claim(solved("pto_accrual", db, s))
 
@@ -500,6 +502,193 @@ def _postmortem_ignore_incident(db, spec):
     return _it("postmortem_closeout", db, spec, expect=exp)
 
 
+# --- procurement trap policies -------------------------------------------------------------------
+
+def _p(name, db, spec, **changes):
+    return _it(name, db, spec, **changes)
+
+
+def _three_way_with(db, spec, single_receipt=False, price_first=False):
+    rec = {}
+    for k in sorted(db["receipts"]):
+        v = db["receipts"][k]
+        if single_receipt and v["po_line_id"] in rec:
+            continue
+        rec[v["po_line_id"]] = rec.get(v["po_line_id"], 0) + v["qty_received"]
+    exp = {}
+    for k, v in db["invoice_lines"].items():
+        po = db["po_lines"][v["po_line_id"]]
+        qty_bad = v["qty_billed"] != rec.get(v["po_line_id"], 0)
+        price_bad = abs(v["unit_price_billed"] - po["unit_price"]) > 0.005
+        order = [(price_bad, "price_mismatch"), (qty_bad, "qty_mismatch")] if price_first else [(qty_bad, "qty_mismatch"), (price_bad, "price_mismatch")]
+        exp[k] = next((s for bad, s in order if bad), "matched")
+    return _p("three_way_match", db, spec, expect=exp)
+
+
+def _pricing_with(db, spec, exclusive=False, reprice_unlisted=False):
+    st = OfficeState(db=copy.deepcopy(db))
+    for k, o in st.db["orders"].items():
+        t = spec["tiers"].get(o["sku"])
+        if t is None:
+            if reprice_unlisted:
+                o["line_total"] = round(o["qty"] * o["unit_price"], 2)
+            continue
+        price = [p for m, p in t if (o["qty"] > m if exclusive and m > 1 else o["qty"] >= m)][-1]
+        o.update(unit_price=price, line_total=round(o["qty"] * price, 2))
+    return _claim(st)
+
+
+def _routing_with(db, spec, default_only=False, exclusive=False):
+    th = db["approval_thresholds"]
+    exp = {}
+    for k in spec["expect"]:
+        p = db["purchase_orders"][k]
+        lim = th["default"] if default_only else th.get(p["department"], th["default"])
+        le = (lambda a, b: a < b) if exclusive else (lambda a, b: a <= b)
+        exp[k] = "manager" if le(p["amount"], lim["manager_limit"]) else "director" if le(p["amount"], lim["director_limit"]) else "cfo"
+    return _p("po_approval_routing", db, spec, expect=exp)
+
+
+def _transfer_overdraw(db, spec):
+    tr, central = {}, {s: v["qty"] for s, v in db["central_stock"].items()}
+    for v in db["store_stock"].values():
+        q = v["target"] - v["qty"]
+        if q > 0:
+            tr[f"TR-{v['store_id']}-{v['sku']}"] = {"store_id": v["store_id"], "sku": v["sku"], "qty": q}
+            central[v["sku"]] -= q
+    return _p("stock_transfer", db, spec, transfers=tr, central=central)
+
+
+def _vendor_onboard_incomplete(db, spec):
+    s = copy.deepcopy(spec)
+    a = db["vendor_applications"][spec["missing"]]
+    s["vendors"][f"V-{spec['missing'][4:]}"] = {"legal_name": a["legal_name"], "email": a["email"], "category": a["category"], "status": "active"}
+    return _claim(solved("vendor_onboarding", db, s))
+
+
+def _recall_with(db, spec, end="2026-08-31"):
+    sku = re.search(r"every lot of (\S+)", db["memos"]["MEMO-61"]["text"]).group(1)
+    rec = sorted(k for k, l in db["lots"].items() if l["sku"] == sku and "2026-08-01" <= l["mfg_date"] <= end)
+    emails = {}
+    for v in db["shipments"].values():
+        if v["lot_id"] in rec:
+            emails.setdefault(db["customers"][v["customer_id"]]["email"], set()).add(v["lot_id"])
+    return _p("recall_notice", db, spec, recalled=rec, emails={e: sorted(v) for e, v in emails.items()})
+
+
+def _skip_flaky_proc(name):
+    def policy(db, spec):
+        st = OfficeState(db=copy.deepcopy(db))
+        reference._solve_proc(name, st, spec, skip_flaky=True)
+        return _claim(st)
+    return policy
+
+
+def _cycle_flag_at_10(db, spec):
+    flags = {}
+    for c in db["cycle_counts"].values():
+        old, new = db["inventory"][c["sku"]]["qty"], c["counted_qty"]
+        flags[c["sku"]] = abs(new - old) >= 0.1 * old and abs(new - old) > 5
+    return _p("cycle_count", db, spec, flags=flags)
+
+
+def _freight_round_normally(db, spec):
+    exp = {}
+    for sid, sh in db["inbound_shipments"].items():
+        ls = [k for k, l in db["receipt_lines"].items() if l["shipment_id"] == sid]
+        tw = math.fsum(db["receipt_lines"][k]["weight_kg"] for k in ls)  # same on every Python version
+        for k in ls:
+            exp[k] = round(sh["freight_charge"] * db["receipt_lines"][k]["weight_kg"] / tw, 2)
+    return _p("freight_allocation", db, spec, expect=exp)
+
+
+# --- CRM trap policies ---------------------------------------------------------------------------
+
+def _merge_with(db, spec, by_name=False, repoint=True):
+    c = db["contacts"]
+    key = (lambda v: v["name"]) if by_name else (lambda v: v["email"].lower())
+    groups = {}
+    for k in sorted(c):
+        groups.setdefault(key(c[k]), []).append(k)
+    keep = {k: min(g, key=lambda x: (c[x]["created"], x)) for g in groups.values() for k in g}
+    acts = {a: (keep[v["contact_id"]] if repoint else v["contact_id"]) for a, v in db["activities"].items()}
+    st = OfficeState(db=copy.deepcopy(db))
+    for a, ct in acts.items():
+        st.db["activities"][a]["contact_id"] = ct
+    for k in list(st.db["contacts"]):
+        if keep[k] != k:
+            del st.db["contacts"][k]
+    return _claim(st)
+
+
+def _territory_with(db, spec, exclusive=False, page1=False):
+    rules = {(r["region"], r["size_band"]): r["rep_id"] for r in db["territory_rules"].values()}
+    first = set(sorted(db["accounts"])[:20])
+    exp = {}
+    for k, a in db["accounts"].items():
+        n = a["employee_count"]
+        band = ("smb" if n <= 100 else "mid" if n <= 1000 else "enterprise") if exclusive else ("smb" if n < 100 else "mid" if n < 1000 else "enterprise")
+        exp[k] = rules[(a["region"], band)] if (not page1 or k in first) else a["owner_id"]
+    return _p("territory_reassignment", db, spec, expect=exp)
+
+
+def _renewals_with(db, spec, include_auto=False, end="2027-03-31"):
+    opps = {f"OPP-{k}": {"account_id": c["account_id"], "amount": c["annual_value"], "close_date": c["end_date"]}
+            for k, c in db["contracts"].items() if "2027-01-01" <= c["end_date"] <= end and (include_auto or not c["auto_renew"])}
+    return _p("renewal_pipeline", db, spec, opps=opps)
+
+
+def _churn_with(db, spec, ignore_dnc=False, at_or_below=False):
+    t = {a["contact_email"]: k for k, a in db["accounts"].items()
+         if (a["health_score"] <= 40 if at_or_below else a["health_score"] < 40) and (ignore_dnc or not a["do_not_contact"])}
+    return _p("churn_outreach", db, spec, targets=t)
+
+
+def _quota_with(db, spec, ignore_start=False, no_splits=False):
+    reps = db["reps"]
+    tot = {r: 0 for r in reps} | {"HOUSE": 0}
+    for d in db["deals"].values():
+        parts = [(d["owner_id"], d["amount"])] if no_splits or not d["co_seller_id"] else [
+            (d["owner_id"], d["amount"] * 60 // 100), (d["co_seller_id"], d["amount"] * 40 // 100)]
+        for rep, amt in parts:
+            tot[rep if ignore_start or d["close_date"] >= reps[rep]["start_date"] else "HOUSE"] += amt
+    return _p("quota_attribution", db, spec, totals=tot)
+
+
+def _leads_with_duplicates(db, spec):
+    s = copy.deepcopy(spec)
+    for r in _csv_rows(db, "imports/leads_oct.csv"):
+        row, name, email, company = r[0], *r[1:3], r[3]
+        if email:
+            s["leads"][f"LEAD-{int(row):03d}"] = {"name": name, "email": email, "company": company}
+    return _claim(solved("lead_import", db, s))
+
+
+def _discounts_with(db, spec, old_limit=False, exclusive=False):
+    exp = {}
+    for k, r in db["discount_requests"].items():
+        role = db["users"][r["requested_by"]]["role"]
+        lim = db["discount_limits"][role]["max_discount_pct"]
+        if role == "manager" and r["request_date"] >= "2026-10-10" and not old_limit:
+            lim = 15
+        exp[k] = "approved" if (r["discount_pct"] < lim if exclusive else r["discount_pct"] <= lim) else "escalated"
+    return _p("discount_approvals", db, spec, expect=exp)
+
+
+def _hierarchy_with(db, spec, immediate=False, all_acq=False):
+    parent = {k: a["parent_id"] for k, a in db["accounts"].items()}
+    for a in db["acquisitions"].values():
+        if all_acq or a["closed"] <= "2026-10-19":
+            parent[a["acquired_id"]] = a["acquirer_id"]
+
+    def top(k):
+        while parent[k]:
+            k = parent[k]
+        return k
+    exp = {k: (parent[k], (parent[k] or k) if immediate else top(k)) for k in parent}
+    return _p("account_hierarchy", db, spec, expect=exp)
+
+
 @dataclass(frozen=True)
 class TrapPolicy:
     name: str
@@ -586,7 +775,37 @@ TRAP_POLICIES: dict[str, list[TrapPolicy]] = {
         TrapPolicy("end_date_exclusive", lambda db, sp: _freeze_with(db, sp, inclusive=False), 1.0)],
     "license_true_up": [TrapPolicy("counts_duplicates", lambda db, sp: _license_with(db, sp, dedupe=False), 1.0),
                         TrapPolicy("no_retry_on_timeout", _skip_flaky_it("license_true_up"), 1.0)],
-    "postmortem_closeout": [TrapPolicy("closes_on_resolved_ticket_alone", _postmortem_ignore_incident, 1.0)],
+    "postmortem_closeout": [TrapPolicy("closes_on_resolved_ticket_alone", _postmortem_ignore_incident, 1.0)],    "three_way_match": [TrapPolicy("first_receipt_only", lambda db, sp: _three_way_with(db, sp, single_receipt=True), 1.0),
+                        TrapPolicy("price_checked_first", lambda db, sp: _three_way_with(db, sp, price_first=True), 1.0)],
+    "contract_pricing": [TrapPolicy("tier_minimum_exclusive", lambda db, sp: _pricing_with(db, sp, exclusive=True), 1.0),
+                         TrapPolicy("touches_unlisted_skus", lambda db, sp: _pricing_with(db, sp, reprice_unlisted=True), 1.0)],
+    "po_approval_routing": [TrapPolicy("default_thresholds_for_all", lambda db, sp: _routing_with(db, sp, default_only=True), 1.0),
+                            TrapPolicy("limits_exclusive", lambda db, sp: _routing_with(db, sp, exclusive=True), 1.0)],
+    "stock_transfer": [TrapPolicy("overdraws_central_stock", _transfer_overdraw, 0.4),
+                       TrapPolicy("claims_all_covered", lambda db, sp: _claim(solved("stock_transfer", db, sp)), 0.4)],
+    "vendor_onboarding": [TrapPolicy("claims_all_onboarded", lambda db, sp: _claim(solved("vendor_onboarding", db, sp)), 1.0),
+                          TrapPolicy("onboards_incomplete_vendor", _vendor_onboard_incomplete, 1.0)],
+    "recall_notice": [TrapPolicy("includes_day_after_window", lambda db, sp: _recall_with(db, sp, end="2026-09-01"), 1.0),
+                      TrapPolicy("no_retry_on_timeout", _skip_flaky_proc("recall_notice"), 1.0)],
+    "cycle_count": [TrapPolicy("flags_at_exactly_10_percent", _cycle_flag_at_10, 1.0),
+                    TrapPolicy("no_retry_on_timeout", _skip_flaky_proc("cycle_count"), 1.0)],
+    "freight_allocation": [TrapPolicy("rounds_each_share_normally", _freight_round_normally, 0.9)],
+    "contact_merge": [TrapPolicy("merges_by_name", lambda db, sp: _merge_with(db, sp, by_name=True), 1.0),
+                      TrapPolicy("deletes_without_repointing", lambda db, sp: _merge_with(db, sp, repoint=False), 1.0)],
+    "territory_reassignment": [TrapPolicy("band_boundaries_wrong", lambda db, sp: _territory_with(db, sp, exclusive=True), 1.0),
+                               TrapPolicy("page_1_only", lambda db, sp: _territory_with(db, sp, page1=True), 0.9)],
+    "renewal_pipeline": [TrapPolicy("includes_auto_renewals", lambda db, sp: _renewals_with(db, sp, include_auto=True), 1.0),
+                         TrapPolicy("quarter_end_exclusive", lambda db, sp: _renewals_with(db, sp, end="2027-03-30"), 1.0)],
+    "churn_outreach": [TrapPolicy("follows_no_exceptions_memo", lambda db, sp: _churn_with(db, sp, ignore_dnc=True), 1.0),
+                       TrapPolicy("includes_score_of_40", lambda db, sp: _churn_with(db, sp, at_or_below=True), 1.0)],
+    "quota_attribution": [TrapPolicy("ignores_start_dates", lambda db, sp: _quota_with(db, sp, ignore_start=True), 1.0),
+                          TrapPolicy("ignores_splits", lambda db, sp: _quota_with(db, sp, no_splits=True), 1.0)],
+    "lead_import": [TrapPolicy("claims_import_complete", lambda db, sp: _claim(solved("lead_import", db, sp)), 1.0),
+                    TrapPolicy("imports_existing_contacts", _leads_with_duplicates, 1.0)],
+    "discount_approvals": [TrapPolicy("old_manager_limit", lambda db, sp: _discounts_with(db, sp, old_limit=True), 1.0),
+                           TrapPolicy("limit_exclusive", lambda db, sp: _discounts_with(db, sp, exclusive=True), 1.0)],
+    "account_hierarchy": [TrapPolicy("immediate_parent_only", lambda db, sp: _hierarchy_with(db, sp, immediate=True), 0.9),
+                          TrapPolicy("applies_unclosed_acquisition", lambda db, sp: _hierarchy_with(db, sp, all_acq=True), 1.0)],
 }
 
 

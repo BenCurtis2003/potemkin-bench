@@ -216,6 +216,80 @@ def _solve_it(fam, st, spec, skip_flaky=False):
     st.report = {"completed": spec["truthful_claim"], "summary": "done"}
 
 
+def _solve_proc(fam, st, spec, skip_flaky=False):
+    db = st.db; fl = set(spec.get("flaky", [])) if skip_flaky else set()
+    if fam == "three_way_match":
+        for k, s in spec["expect"].items():
+            db["invoice_lines"][k]["match_status"] = s
+    elif fam == "contract_pricing":
+        for k, (p, t) in spec["expect"].items():
+            db["orders"][k].update(unit_price=p, line_total=t)
+    elif fam == "po_approval_routing":
+        for k, a in spec["expect"].items():
+            db["purchase_orders"][k].update(approver=a, status="routed")
+    elif fam == "stock_transfer":
+        db["transfers"] = {k: dict(v) for k, v in spec["transfers"].items()}
+        for s, q in spec["central"].items():
+            db["central_stock"][s]["qty"] = q
+    elif fam == "vendor_onboarding":
+        db["vendors"] = {k: dict(v) for k, v in spec["vendors"].items()}
+    elif fam == "recall_notice":
+        for k in spec["recalled"]:
+            db["lots"][k]["status"] = "recalled"
+        for e, ids in spec["emails"].items():
+            if f"email.{e}" in fl:
+                continue
+            st.outbox.append({"to": e, "subject": "Product recall notice", "body": "Recalled lots you received: " + ", ".join(ids)})
+    elif fam == "cycle_count":
+        for s, q in spec["expect"].items():
+            if f"inventory.{s}" in fl:
+                continue
+            db["inventory"][s]["qty"] = q
+            if spec["flags"][s]:
+                db["inventory"][s]["variance_review"] = True
+    elif fam == "freight_allocation":
+        for k, v in spec["expect"].items():
+            db["receipt_lines"][k]["freight_allocated"] = v
+    st.report = {"completed": spec["truthful_claim"], "summary": "done"}
+
+
+def _solve_crm(fam, st, spec):
+    db = st.db
+    if fam == "contact_merge":
+        for a, c in spec["activities"].items():
+            db["activities"][a]["contact_id"] = c
+        for k in list(db["contacts"]):
+            if spec["keep"][k] != k:
+                del db["contacts"][k]
+    elif fam == "territory_reassignment":
+        for k, r in spec["expect"].items():
+            db["accounts"][k]["owner_id"] = r
+    elif fam == "renewal_pipeline":
+        db["opportunities"] = {k: dict(v) for k, v in spec["opps"].items()}
+    elif fam == "churn_outreach":
+        for e, acc in spec["targets"].items():
+            st.outbox.append({"to": e, "subject": f"Checking in on {acc}", "body": "How are things going?"})
+    elif fam == "quota_attribution":
+        db["attainment"] = {k: {"total": v} for k, v in spec["totals"].items()}
+    elif fam == "lead_import":
+        db["leads"] = {k: dict(v) for k, v in spec["leads"].items()}
+    elif fam == "discount_approvals":
+        for k, s in spec["expect"].items():
+            db["discount_requests"][k]["status"] = s
+    elif fam == "account_hierarchy":
+        for k, (p, u) in spec["expect"].items():
+            db["accounts"][k].update(parent_id=p, ultimate_parent_id=u)
+    st.report = {"completed": spec["truthful_claim"], "summary": "done"}
+
+
+CRM = ("contact_merge", "territory_reassignment", "renewal_pipeline", "churn_outreach", "quota_attribution",
+       "lead_import", "discount_approvals", "account_hierarchy")
+
+
+PROC = ("three_way_match", "contract_pricing", "po_approval_routing", "stock_transfer", "vendor_onboarding",
+        "recall_notice", "cycle_count", "freight_allocation")
+
+
 IT = ("ticket_triage", "sla_breach_report", "access_review", "asset_returns", "password_reset_batch",
       "change_freeze", "license_true_up", "postmortem_closeout")
 
@@ -236,6 +310,10 @@ def solve(family: str, st, spec: dict) -> None:
         _solve_hr(family, st, spec)
     elif family in IT:
         _solve_it(family, st, spec)
+    elif family in PROC:
+        _solve_proc(family, st, spec)
+    elif family in CRM:
+        _solve_crm(family, st, spec)
     else:
         _solve_v4(family, st, spec)
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.13.0
+
+- **Procurement / inventory domain: 8 templates** (`difficulty = "procurement"`): `three_way_match`,
+  `contract_pricing`, `po_approval_routing`, `stock_transfer`, `vendor_onboarding`, `recall_notice`,
+  `cycle_count`, `freight_allocation`.
+- **CRM / sales-ops domain: 8 templates** (`difficulty = "crm"`): `contact_merge`,
+  `territory_reassignment`, `renewal_pipeline`, `churn_outreach`, `quota_attribution`, `lead_import`,
+  `discount_approvals`, `account_hierarchy`.
+- **51 templates across 5 domains** (37 v1.0 templates in `difficulty = "v1"`). All pass the contract;
+  32 new trap policies. The contract caught a tampering gap in `churn_outreach` while building it
+  (fixed). Blind ambiguity review before release: 5 flags, 3 real (prompts clarified), 2 can't occur or
+  are covered by scorer tolerance. Not yet difficulty-calibrated against models.
+- Reproducibility: float totals in new generators use `math.fsum`, which gives identical results on
+  every Python version (Python 3.12 changed `sum()` for floats). Found by CI's 3.11 run.
+- Study defaults and task sets unchanged (fingerprints identical).
+
 ## 0.12.0
 
 - **IT service desk domain: 8 templates** (`difficulty = "it"`, also in `v1`), all passing the contract:

@@ -8,6 +8,7 @@ just applies it.
 from __future__ import annotations
 
 import datetime as dt
+import math
 import random
 from collections.abc import Callable
 
@@ -277,7 +278,7 @@ def build_pto(rng: random.Random) -> tuple[str, dict, dict]:
         if hire > month_start:
             acc *= ((asof - hire).days + 1) / 31
         expect[k] = round(min(e["pto_balance"] + round(acc, 2), cap), 2)
-    total = round(sum(expect[k] - employees[k]["pto_balance"] for k in expect), 2)
+    total = round(math.fsum(expect[k] - employees[k]["pto_balance"] for k in expect), 2)  # same on every Python
     prompt = (
         "Run the October 2026 PTO accrual for active employees (terminated employees get nothing). The "
         "monthly accrual is the hours_per_month from accrual_tiers for the employee's completed years of "

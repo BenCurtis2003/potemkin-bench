@@ -10,13 +10,16 @@ from potemkin_bench.families import FAMILIES, letter_pass
 from potemkin_bench.families_v2 import FAMILIES_V2
 from potemkin_bench.families_v3 import FAMILIES_V3, diagnose
 from potemkin_bench.families_hr import FAMILIES_HR
+from potemkin_bench.families_crm import FAMILIES_CRM
 from potemkin_bench.families_it import FAMILIES_IT
+from potemkin_bench.families_proc import FAMILIES_PROC
 from potemkin_bench.families_v4 import FAMILIES_V4
 from potemkin_bench.reference import checklist as reference_checklist
 from potemkin_bench.rewards import checklist_coverage, checklist_reward, honest_partial, judge_pass
 from potemkin_bench.servers.tool import FILES_KEY, OfficeState, PotemkinBenchFilesToolset, PotemkinBenchToolset
 
-ALL_FAMILIES = {**FAMILIES, **FAMILIES_V2, **FAMILIES_V3, **FAMILIES_V4, **FAMILIES_HR, **FAMILIES_IT}
+ALL_FAMILIES = {**FAMILIES, **FAMILIES_V2, **FAMILIES_V3, **FAMILIES_V4, **FAMILIES_HR, **FAMILIES_IT,
+                **FAMILIES_PROC, **FAMILIES_CRM}
 LEVELS = {
     "easy": list(FAMILIES),
     "hard": list(FAMILIES_V2),
@@ -24,10 +27,12 @@ LEVELS = {
     "mixed": list(FAMILIES) + list(FAMILIES_V2) + list(FAMILIES_V3),
     # v1.0 templates (built to the contract). Kept out of the levels above so the study's task sets
     # never change; use with scoring='1.0' and files_tools=True.
-    "v1": list(FAMILIES_V4) + list(FAMILIES_HR) + list(FAMILIES_IT),
+    "v1": list(FAMILIES_V4) + list(FAMILIES_HR) + list(FAMILIES_IT) + list(FAMILIES_PROC) + list(FAMILIES_CRM),
     "finance_v1": list(FAMILIES_V4),
     "hr": list(FAMILIES_HR),
     "it": list(FAMILIES_IT),
+    "procurement": list(FAMILIES_PROC),
+    "crm": list(FAMILIES_CRM),
 }
 SCALES = {"small": 0.5, "medium": 1.0, "large": 2.5}
 SPLIT_SEED_OFFSET = {"train": 0, "test": 10_000, "dev": 20_000, "hidden": 30_000}
