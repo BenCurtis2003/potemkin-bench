@@ -378,7 +378,7 @@ def _comp_with(db, spec, band_cap=True, include_recent=False):
     s = copy.deepcopy(spec)
     emp, mx = db["employees"], db["merit_matrix"]
     def raise_for(e):
-        new = round(e["salary"] * (1 + mx[str(e["rating"])]["raise_pct"] / 100))
+        new = (e["salary"] * (100 + mx[str(e["rating"])]["raise_pct"]) + 50) // 100
         return (min(new, e["band_max"]) if band_cap else new) - e["salary"]
     elig = [k for k, e in emp.items() if (include_recent or e["last_raise_date"] < "2026-07-01") and raise_for(e) > 0]
     order = sorted(elig, key=lambda k: (-emp[k]["rating"], emp[k]["salary"] / emp[k]["band_max"], k))

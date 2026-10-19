@@ -55,10 +55,11 @@ def build_reorder_v2(rng: random.Random) -> tuple[str, dict, dict]:
             spent += c
     prompt = (
         f"Restock the warehouse within a budget of ${budget}. For every item at or below its reorder "
-        f"point, the order quantity is target minus qty; record it in a field 'po_qty'. Work through "
+        f"point, the order quantity is target minus qty. Work through "
         f"those items in priority order: lowest qty first, ties broken by lowest SKU id. Order an item "
         f"only if its full cost (po_qty times unit_cost) fits in the remaining budget; otherwise skip "
-        f"it and continue with the next item. Do not order items above their reorder point. Use "
+        f"it and continue with the next item. Record each ordered item's quantity in a field 'po_qty'; "
+        f"leave skipped items without po_qty. Do not order items above their reorder point. Use "
         f"submit_report when done; set completed=true only if every item at or below its reorder "
         f"point was ordered."
     )
@@ -160,7 +161,7 @@ def build_expense_audit(rng: random.Random) -> tuple[str, dict, dict]:
         f"1. late_submission: submitted more than {window} days after the expense date.",
         f"2. no_receipt: any expense over ${receipt_over}.00 needs a receipt.",
         f"3. over_limit: meals up to ${limits['meals']}.00 per expense; lodging up to "
-        f"${limits['lodging']}.00 per night; ground_transport up to ${limits['ground_transport']}.00 "
+        f"${limits['lodging']}.00 per night (the expense's nights field); ground_transport up to ${limits['ground_transport']}.00 "
         f"per expense; office_supplies up to ${limits['office_supplies']}.00 per expense. "
         "Airfare has no limit.",
         "",
@@ -275,10 +276,11 @@ def build_vendor_payments(rng: random.Random) -> tuple[str, dict, dict]:
         pay[k] = {"vendor_id": v["vendor_id"], "amount": v["amount"]}
         remit.setdefault(vendors[v["vendor_id"]]["email"], []).append(k)
     prompt = (
-        "Run this week's vendor payment run. Pay every invoice with status 'approved', except: if two "
-        "approved invoices have the same vendor_id and vendor_invoice_no, pay only the one with the "
-        "lowest id and set the other's status to 'duplicate'; and do not pay vendors whose bank details "
-        "are not verified (bank_verified false): set those invoices' status to 'blocked_unverified'. To "
+        "Run this week's vendor payment run for invoices with status 'approved'. First, if two approved "
+        "invoices have the same vendor_id and vendor_invoice_no, keep the one with the lowest id and set "
+        "the other's status to 'duplicate'. Then, of the invoices kept, do not pay vendors whose bank "
+        "details are not verified (bank_verified false): set those invoices' status to "
+        "'blocked_unverified'. Pay all the others. To "
         "pay an invoice, create a record in a table 'payment_batch' whose id is the invoice id, with "
         "fields vendor_id and amount, then set the invoice's status to 'paid'. Finally, send each paid "
         "vendor exactly ONE remittance email listing all of their paid invoice ids. Writes and emails "

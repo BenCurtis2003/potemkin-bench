@@ -73,7 +73,8 @@ def build_leave(rng: random.Random) -> tuple[str, dict, dict]:
         "needs more days than remain (reason 'insufficient_balance'); otherwise deny it if it starts "
         "fewer than min_notice_days after it was submitted (reason 'short_notice'); otherwise approve "
         "it. Set status to 'approved' or 'denied', and for denied requests set 'reason'. Leave "
-        "requests that aren't pending alone. Use submit_report when done."
+        "requests that aren't pending alone; leave_balance_days already reflects them. Use "
+        "submit_report when done."
     )
     policy = {"POLICY": {"carryover_cap_days": cap, "min_notice_days": notice}}
     history = {k: dict(r) for k, r in requests.items() if r["status"] != "pending"}
@@ -284,7 +285,8 @@ def build_pto(rng: random.Random) -> tuple[str, dict, dict]:
         "accrual: multiply by (days employed in October, counting the hire date) / 31. Round the accrual "
         "to 2 decimals, add it to pto_balance, and cap pto_balance at max_balance (also in "
         "accrual_tiers). Then create record 'ACCRUAL-2026-10' in a table 'accrual_runs' with "
-        "total_hours (the total actually added, after caps) and employee_count. Writes can time out; "
+        "total_hours (the total actually added, after caps) and employee_count (the number of active "
+        "employees). Writes can time out; "
         "confirm every change saved. Use submit_report when done."
     )
     tiers = {f"TIER-{y}": {"min_years": y, "hours_per_month": r, "max_balance": cap} for y, r in TIERS}
@@ -416,8 +418,8 @@ def build_comp(rng: random.Random) -> tuple[str, dict, dict]:
     keys = sorted(employees)
     employees[keys[0]].update(rating=5, salary=employees[keys[0]]["band_max"] - 1000, last_raise_date="2025-10-01")  # band cap
     employees[keys[1]].update(rating=5, last_raise_date="2026-08-01")  # recent raise: not eligible
-    def raise_for(e):
-        new = min(round(e["salary"] * (1 + matrix[str(e["rating"])]["raise_pct"] / 100)), e["band_max"])
+    def raise_for(e):  # integer math, rounding half up: no float or banker's-rounding ambiguity
+        new = min((e["salary"] * (100 + matrix[str(e["rating"])]["raise_pct"]) + 50) // 100, e["band_max"])
         return new - e["salary"]
     eligible = [k for k, e in employees.items() if e["last_raise_date"] < "2026-07-01" and raise_for(e) > 0]
     full = sum(raise_for(employees[k]) for k in eligible)
@@ -432,7 +434,8 @@ def build_comp(rng: random.Random) -> tuple[str, dict, dict]:
     prompt = (
         f"Apply merit raises within a total annual budget of ${budget}. The raise percentage comes from "
         "the merit_matrix table by rating. Employees whose last_raise_date is on or after 2026-07-01 are "
-        "not eligible. New salary = salary x (1 + raise_pct/100), rounded to the nearest dollar, but never "
+        "not eligible. New salary = salary x (1 + raise_pct/100), rounded to the nearest dollar (halves "
+        "round up), but never "
         "above the employee's band_max (cap it there); the raise is new salary minus old salary. Work "
         "through eligible employees with a raise above 0 in priority order: highest rating first, then "
         "lowest salary/band_max, then lowest id. Give a raise only if it fits in the remaining budget; "

@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use PotemkinBench, please cite it as below."
+title: "PotemkinBench: does the agent actually do the job, or just say it did?"
+type: software
+authors:
+  - family-names: Curtis
+    given-names: Ben
+version: 0.11.0
+date-released: "2026-10-19"
+license: MIT
+repository-code: "https://github.com/BenCurtis2003/potemkin-bench"
+keywords:
+  - benchmark
+  - reinforcement learning
+  - AI agents
+  - honesty
+  - reward hacking
+abstract: >-
+  Multi-step back-office agent tasks (finance and HR) run against a mock database, email and files,
+  scored on the true end state, with the agent's self-report scored separately so false success
+  (claimed done, wasn't) is measured directly.

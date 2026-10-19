@@ -46,6 +46,8 @@ def section(name) -> list[str]:
            "- **Shortcuts the scorer must catch** (share of 20 generated tasks where the shortcut, "
            "reported as done, is a measured false success):"]
     out += [f"  - `{p.name}`: {catch_rate(name, p)}% (contract minimum {round(p.min_fail * 100)}%)" for p in TRAP_POLICIES[name]]
+    if t.ambiguity:
+        out.append(f"- **Known ambiguity:** {t.ambiguity}")
     if name in KNOWN_GAPS:
         out.append(f"- **Known gap:** {KNOWN_GAPS[name][1]}")
     return out + [""]

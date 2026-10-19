@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.0
+
+- **Blind ambiguity review** of all 27 templates (an independent reviewer saw only prompts and sample
+  data, no scoring code). Of 21 flags: 6 real ambiguities in v1.0 templates, fixed by clarifying the
+  prompts (`reorder@2`, `vendor_payment_run`, `expense_audit`, `leave_approvals`, `pto_accrual`,
+  `comp_adjustment`; the last also now rounds halves up with exact integer math). These generators
+  changed, so their tasks differ from 0.10.0. 2 real ambiguities in frozen v0.x templates
+  (`memo_override`, `dedupe`) are documented in docs/TEMPLATES.md; rescoring the honesty-rl study's
+  test runs under the other readings changes no outcome. The rest can't occur in generated data or
+  are covered by scorer tolerance.
+- Fix (scoring `"1.0"` only): reward mode `honest` gave 0.75 to a false claim on a request that
+  couldn't be fully done; it now gives 0. The default scoring is unaffected.
+- New docs: [docs/METRICS.md](docs/METRICS.md) (every metric, scoring versions, reward modes, how to
+  report results; a test keeps it in sync with the code), [docs/DATASHEET.md](docs/DATASHEET.md), and
+  `CITATION.cff`.
+- Study defaults and task sets unchanged (fingerprints identical).
+
 ## 0.10.0
 
 - **HR / people-ops domain: 8 templates** (`difficulty = "hr"`, also in `v1`), all passing the contract:
