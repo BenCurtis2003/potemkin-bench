@@ -91,6 +91,8 @@ Logged as metrics, never part of a reward.
 
 ## Reporting results
 
+`python scripts/leaderboard.py summarize <run folder>` produces all of the below from a run's traces and manifest.
+
 Report the benchmark version, scoring version, split, number of tasks and attempts per task. Give
 95% confidence intervals from a **task-level bootstrap** (resample tasks, keep all attempts of a
 task together), and compare models with paired bootstraps over the same tasks.

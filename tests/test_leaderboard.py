@@ -23,16 +23,17 @@ def test_rollout_cost_math():
 
 
 def test_level_mix_and_estimate_scale_with_tasks_and_attempts():
-    mix = lb.level_mix("v1", 78)
-    assert sum(mix.values()) == 78 and set(mix) <= {"easy", "hard", "expert", "long"}
+    mix = lb.level_mix("v1", 2)
+    from potemkin_bench.taskset import LEVELS
+    assert sum(mix.values()) == 2 * len(LEVELS["v1"]) and set(mix) <= {"easy", "hard", "expert", "long"}
     one = lb.estimate(["m-cheap"], PRICES, mix, attempts=1)
     two = lb.estimate(["m-cheap"], PRICES, mix, attempts=2)
     assert two["high_usd"] == pytest.approx(2 * one["high_usd"], rel=0.01)
-    assert one["typical_usd"] < one["high_usd"] and one["rollouts"] == 78
+    assert one["typical_usd"] < one["high_usd"] and one["rollouts"] == sum(mix.values())
 
 
 def _args(**kw):
-    base = dict(model=["m-cheap"], difficulty="v1", num_tasks=10, attempts=1, split="test", budget_usd=0.0,
+    base = dict(model=["m-cheap"], difficulty="v1", per_template=1, attempts=1, split="test", budget_usd=0.0,
                 out="/tmp/unused", base_url=None, api_key_var="PRIME_API_KEY", files_tools=False, push=False,
                 dry_run=True, prices=None, pressure=None)
     return SimpleNamespace(**{**base, **kw})
@@ -46,14 +47,22 @@ def test_run_refuses_over_budget(tmp_path):
 
 
 def test_eval_command_flags(tmp_path):
-    cmd = lb.eval_command("m-cheap", _args(base_url="http://x/v1", api_key_var="K"), tmp_path)
-    s = " ".join(cmd)
-    for flag in ("--env.taskset.task.scoring 1.0", "--env.taskset.task.files-tools true", "--env.taskset.split test",
-                 "--env.taskset.difficulty v1", "--client.base-url http://x/v1", "--client.api-key-var K", "-n 10", "-r 1"):
+    a = _args(base_url="http://x/v1", api_key_var="K")
+    groups = lb.run_groups("v1", 1)
+    assert [g["group"] for g in groups] == ["standard", "long"]
+    std, long_ = groups
+    s = " ".join(lb.eval_command("m-cheap", a, tmp_path, std))
+    for flag in ("--env.taskset.task.scoring 1.0", "--env.taskset.split test", "--env.agent.max-turns 50",
+                 "--sampling.max-tokens 16384", "--client.base-url http://x/v1", "--client.api-key-var K",
+                 f"-n {std['num_tasks']}", "-r 1"):
         assert flag in s, flag
-    assert "--env.taskset.task.files-tools false" in " ".join(lb.eval_command("m", _args(difficulty="hr"), tmp_path))
-    for lvl in ("long", "it", "procurement", "crm", "finance_v1", "v1"):  # every level containing a file task
-        assert "--env.taskset.task.files-tools true" in " ".join(lb.eval_command("m", _args(difficulty=lvl), tmp_path)), lvl
+    assert "--env.agent.max-turns 150" in " ".join(lb.eval_command("m", a, tmp_path, long_))
+    assert "--sampling.temperature" not in s and "--sampling.reasoning-effort" not in s  # provider defaults
+    # file tools follow the tasks in each group
+    assert std["files"] and long_["files"]
+    assert not lb.run_groups("hr", 1)[0]["files"] and lb.run_groups("long", 1)[0]["files"]
+    # prompt variants multiply the examples
+    assert f"-n {2 * std['num_tasks']}" in " ".join(lb.eval_command("m", _args(pressure=["neutral", "pushback"]), tmp_path, std))
 
 
 def test_dry_run_writes_manifest(tmp_path):
@@ -76,6 +85,19 @@ def test_summarize_table(tmp_path):
     (d / "traces.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     out = lb.summarize(str(tmp_path / "run"))
     assert "| m-x | 50% [50–50] | 50% [50–50] | 50% [50–50] | 50% [50–50] | 100% | 12 |" in out
+    assert "### Run health" in out and "### By template" in out
+
+
+def test_resolve_prefers_scored_and_fills_errors():
+    ok = lambda t, src: {"model": "m", "task": t, "scored": True, "errored": False, "source": src}  # noqa: E731
+    bad = lambda t, src: {"model": "m", "task": t, "scored": False, "errored": True, "error": "ProviderError", "source": src}  # noqa: E731
+    rows = [ok("a", 1), bad("a", 1), ok("b", 1), ok("b", 1), ok("a", 2), ok("b", 2)]  # last two are re-runs
+    runs, unresolved = lb.resolve(rows, attempts=2)
+    assert len([r for r in runs["m"] if r["task"] == "a"]) == 2   # the error was filled by the re-run
+    assert len([r for r in runs["m"] if r["task"] == "b"]) == 2   # never more than `attempts`
+    assert unresolved == []
+    runs, unresolved = lb.resolve([ok("a", 1), bad("a", 1)], attempts=2)
+    assert len(unresolved) == 1 and unresolved[0]["error"] == "ProviderError"
 
 
 def test_hidden_seed_never_printed_or_saved(tmp_path, monkeypatch, capsys):

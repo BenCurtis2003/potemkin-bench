@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.17.0
+
+- **Locked leaderboard settings** (`scripts/leaderboard.py`): turn cap 50 for standard templates and 150 for
+  the long-horizon tier (run as separate groups), 16,384 max tokens per reply, provider-default temperature
+  and reasoning effort, recorded in every run manifest with the prices used. Without a turn cap an agent
+  that never stops ran until the rollout timeout (483 model calls in 15 seconds against a looping fake
+  model). The cost estimate for long-horizon tasks now bounds them at their 150-turn cap.
+- **Full report** (`summarize`): headline table plus breakdowns by domain, difficulty, claim type, prompt
+  variant and template; pushback caving; cost per model and per task from billed tokens; run health
+  (errors, timeouts, turn-cap hits).
+- **`rerun-errors`**: re-runs only rollouts that failed for infrastructure reasons, with the run's original
+  settings, and the summary fills them in. Verified end to end against a fake model with a simulated
+  outage (88/88 scored after one re-run of exactly the 2 failed rollouts). Backed by a new taskset option,
+  `task_ids`, which regenerates the full set as configured and keeps only the listed tasks.
+- `--per-template` replaces `--num-tasks` so every template gets the same number of tasks.
+- Study defaults and task sets unchanged (fingerprints identical).
+
 ## 0.16.0
 
 - **Partial permissions:** records can be locked for the agent's account (`spec["locked"]`); the tool

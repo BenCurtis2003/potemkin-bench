@@ -2,10 +2,10 @@
 
     # 1. what would it cost? (live prices from Prime Inference, token usage from past runs)
     python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash -m Qwen/Qwen3.5-9B \
-        --difficulty v1 --num-tasks 78 --attempts 2
+        --difficulty v1 --per-template 2 --attempts 2
 
     # 2. run it (refuses unless the HIGH estimate fits under --budget-usd)
-    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --num-tasks 78 \
+    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --per-template 2 \
         --attempts 2 --split test --budget-usd 25 --out leaderboard_runs/2026-10
 
     # 3. summarize every run in a folder into a table with task-level bootstrap CIs
@@ -33,7 +33,18 @@ import tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PROFILE = ROOT / "scripts" / "token_profile.json"
 HIDDEN_SEED_FILE = pathlib.Path.home() / ".config" / "potemkin-bench" / "hidden_seed"  # never in the repo
-SETTINGS = {"harness": "null", "runtime": "subprocess", "rollout_timeout_s": 2400, "concurrency": 4, "scoring": "1.0"}
+# Locked leaderboard settings. Changing any of these makes scores incomparable with earlier runs.
+SETTINGS = {
+    "harness": "null", "runtime": "subprocess", "concurrency": 4, "scoring": "1.0",
+    "max_tokens": 16384,          # per model reply
+    "temperature": None,          # None = the provider's default (some reasoning APIs reject other values)
+    "reasoning_effort": None,     # None = the provider's default
+    # Without a turn cap an agent that never stops keeps going until the rollout timeout (measured: 483
+    # model calls in 15 s against a looping fake model). Long-horizon tasks need up to ~93 writes plus
+    # reads, so they run as their own group with a higher cap.
+    "groups": {"standard": {"max_turns": 50, "rollout_timeout_s": 2400},
+               "long": {"max_turns": 150, "rollout_timeout_s": 7200}},
+}
 
 
 def version() -> str:
@@ -42,15 +53,27 @@ def version() -> str:
 
 # --- cost estimate ----------------------------------------------------------------------------
 
-def level_mix(difficulty: str, num_tasks: int, families: list[str] | None = None) -> dict[str, int]:
-    """How many generated tasks fall in each template level (tasks cycle through the families)."""
+def run_groups(difficulty: str, per_template: int) -> list[dict]:
+    """Split the level's templates into the standard and long-horizon groups (each run with its own cap)."""
     from potemkin_bench.taskset import LEVELS
     from potemkin_bench.templates import TEMPLATES
-    fams = families or LEVELS[difficulty]
+    fams = LEVELS[difficulty]
+    out = []
+    for name, pick in (("standard", lambda f: TEMPLATES[f].level != "long"), ("long", lambda f: TEMPLATES[f].level == "long")):
+        group = [f for f in fams if pick(f)]
+        if group:
+            out.append({"group": name, "families": group, "num_tasks": per_template * len(group),
+                        "files": any("files" in TEMPLATES[f].systems for f in group), **SETTINGS["groups"][name]})
+    return out
+
+
+def level_mix(difficulty: str, per_template: int) -> dict[str, int]:
+    """How many tasks fall in each template level (every template gets per_template tasks)."""
+    from potemkin_bench.taskset import LEVELS
+    from potemkin_bench.templates import TEMPLATES
     mix: dict[str, int] = {}
-    for i in range(num_tasks):
-        lvl = TEMPLATES[fams[i % len(fams)]].level
-        mix[lvl] = mix.get(lvl, 0) + 1
+    for f in LEVELS[difficulty]:
+        mix[TEMPLATES[f].level] = mix.get(TEMPLATES[f].level, 0) + per_template
     return mix
 
 
@@ -99,18 +122,21 @@ def print_estimate(est: dict, mix: dict[str, int], attempts: int) -> None:
 
 # --- run --------------------------------------------------------------------------------------
 
-def eval_command(model: str, a, out_dir: pathlib.Path) -> list[str]:
-    from potemkin_bench.taskset import LEVELS
-    from potemkin_bench.templates import TEMPLATES
-    needs = any("files" in TEMPLATES[f].systems for f in LEVELS[a.difficulty])  # from the tasks, not a list of names
-    files = "true" if needs or a.files_tools else "false"
-    cmd = [str(ROOT / ".venv/bin/vf-eval"), "potemkin-bench", "-m", model, "-n", str(a.num_tasks), "-r", str(a.attempts),
-           "-c", str(SETTINGS["concurrency"]), "-o", str(out_dir),
+def eval_command(model: str, a, out_dir: pathlib.Path, group: dict) -> list[str]:
+    files = "true" if group["files"] or a.files_tools else "false"  # from the tasks, not a list of level names
+    examples = group["num_tasks"] * len(a.pressure or ["neutral"])  # the taskset repeats each task per variant
+    cmd = [str(ROOT / ".venv/bin/vf-eval"), "potemkin-bench", "-m", model, "-n", str(examples),
+           "-r", str(a.attempts), "-c", str(SETTINGS["concurrency"]), "-o", str(out_dir),
            "--env.agent.harness.id", SETTINGS["harness"], "--env.agent.runtime.type", SETTINGS["runtime"],
-           "--env.agent.timeout.rollout", str(SETTINGS["rollout_timeout_s"]),
-           "--env.taskset.split", a.split, "--env.taskset.difficulty", a.difficulty,
-           "--env.taskset.num-tasks", str(a.num_tasks), "--env.taskset.task.scoring", SETTINGS["scoring"],
+           "--env.agent.max-turns", str(group["max_turns"]), "--env.agent.timeout.rollout", str(group["rollout_timeout_s"]),
+           "--sampling.max-tokens", str(SETTINGS["max_tokens"]),
+           "--env.taskset.split", a.split, "--env.taskset.families", json.dumps(group["families"]),
+           "--env.taskset.num-tasks", str(group["num_tasks"]), "--env.taskset.task.scoring", SETTINGS["scoring"],
            "--env.taskset.task.files-tools", files]
+    if SETTINGS["temperature"] is not None:
+        cmd += ["--sampling.temperature", str(SETTINGS["temperature"])]
+    if SETTINGS["reasoning_effort"] is not None:
+        cmd += ["--sampling.reasoning-effort", str(SETTINGS["reasoning_effort"])]
     if a.pressure:
         cmd += ["--env.taskset.pressures", json.dumps(a.pressure)]
     if a.base_url:
@@ -121,10 +147,12 @@ def eval_command(model: str, a, out_dir: pathlib.Path) -> list[str]:
 
 
 def run(a) -> None:
-    mix = level_mix(a.difficulty, a.num_tasks)
+    variants = len(a.pressure or ["neutral"])  # each base task runs once per prompt variant
+    mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template).items()}
     prices = json.loads(pathlib.Path(a.prices).read_text()) if a.prices else live_prices(a.model)
     est = estimate(a.model, prices, mix, a.attempts)
     print_estimate(est, mix, a.attempts)
+    groups = run_groups(a.difficulty, a.per_template)
     if est["high_usd"] > a.budget_usd:
         raise SystemExit(f"REFUSING: high estimate ${est['high_usd']} exceeds --budget-usd {a.budget_usd}")
     if a.split == "hidden" and not os.environ.get("POTEMKIN_HIDDEN_SEED"):
@@ -135,36 +163,80 @@ def run(a) -> None:
     out.mkdir(parents=True, exist_ok=True)
     sha = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     manifest = {"benchmark_version": version(), "git_sha": sha, "date": dt.date.today().isoformat(),
-                "split": a.split, "pressures": a.pressure or ["neutral"], "difficulty": a.difficulty, "num_tasks": a.num_tasks, "attempts": a.attempts,
-                "settings": SETTINGS, "models": a.model, "estimate": est}
+                "split": a.split, "pressures": a.pressure or ["neutral"], "difficulty": a.difficulty,
+                "per_template": a.per_template, "num_tasks": sum(g["num_tasks"] for g in groups), "attempts": a.attempts,
+                "settings": SETTINGS, "groups": groups, "models": a.model, "prices": {m: prices[m] for m in a.model},
+                "estimate": est}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
     for m in a.model:
-        cmd = eval_command(m, a, out)
-        print("$", shlex.join(cmd))
-        if not a.dry_run:
-            subprocess.run(cmd, check=True)
+        for g in groups:
+            cmd = eval_command(m, a, out, g)
+            print(f"$ [{g['group']}]", shlex.join(cmd))
+            if not a.dry_run:
+                subprocess.run(cmd, check=True)
 
 
 # --- summarize --------------------------------------------------------------------------------
 
-def load_runs(folder: str) -> dict[str, list[dict]]:
-    """model -> list of {task, success, false_success, truthful, should_claim, claimed} rollouts."""
-    runs: dict[str, list[dict]] = {}
+def _rollout(tr: dict, model_fallback: str) -> dict | None:
+    """One rollout from a trace: outcome metrics, task metadata, status and billed tokens."""
+    from potemkin_bench.templates import TEMPLATES
+    met = tr.get("metrics") or {}
+    data = (tr.get("task") or {}).get("data", {})
+    fam = data.get("family") or data.get("name")
+    calls = [c for c in tr.get("calls", []) if "usage" in c]
+    t = TEMPLATES.get(fam)
+    errored = bool(tr.get("errors")) or tr.get("ok") is False
+    return {
+        "model": ((tr.get("agent") or {}).get("config") or {}).get("model") or model_fallback,
+        "task": data.get("id"), "family": fam, "pressure": data.get("pressure", "neutral"),
+        "domain": t.domain if t else "?", "level": t.level if t else "?", "claim": t.claim if t else "?",
+        "errored": errored, "error": (tr.get("errors") or [{}])[0].get("type") if errored else None,
+        "timeout": bool(tr.get("is_timeout")), "truncated": tr.get("stop_condition") == "max_turns",
+        "scored": "task_success" in met and not errored,
+        "success": met.get("task_success", 0.0), "false_success": met.get("false_success", 0.0),
+        "truthful": met.get("calib_honest", 0.0), "should_claim": met.get("calib_should_claim"),
+        "under_claim": met.get("calib_under_claim", 0.0),
+        "honest_success": met.get("honest_success", float(bool(met.get("task_success")) and bool(met.get("calib_honest")))),
+        "caved": met.get("caved_to_pressure"),
+        "prompt_tokens": sum(c["usage"].get("prompt_tokens", 0) for c in calls),
+        "cached_tokens": sum(c["usage"].get("cached_input_tokens", 0) or 0 for c in calls),
+        "output_tokens": sum(c["usage"].get("completion_tokens", 0) for c in calls),
+    }
+
+
+def load_all(folder: str) -> list[dict]:
+    rows = []
     for f in sorted(glob.glob(os.path.join(folder, "**", "traces.jsonl"), recursive=True)):
         for line in open(f):
-            row = json.loads(line)
-            for tr in row.get("traces", []):
-                met = tr.get("metrics") or {}
-                model = ((tr.get("agent") or {}).get("config") or {}).get("model") or pathlib.Path(f).parent.name
-                if "task_success" not in met:
-                    continue
-                runs.setdefault(model, []).append({
-                    "task": (tr.get("task") or {}).get("data", {}).get("id"),
-                    "success": met["task_success"], "false_success": met.get("false_success", 0.0),
-                    "truthful": met.get("calib_honest", 0.0), "should_claim": met.get("calib_should_claim"),
-                    "under_claim": met.get("calib_under_claim", 0.0),
-                    "honest_success": met.get("honest_success", float(met["task_success"] and met.get("calib_honest", 0.0)))})
-    return runs
+            for tr in json.loads(line).get("traces", []):
+                r = _rollout(tr, pathlib.Path(f).parent.name)
+                if r and r["task"]:
+                    r["source"] = f
+                    rows.append(r)
+    return rows
+
+
+def resolve(rows: list[dict], attempts: int | None) -> tuple[dict[str, list[dict]], list[dict]]:
+    """Scored rollouts per model, with re-runs filling in for errored attempts; and the unresolved errors.
+    Per (model, task) keep up to `attempts` scored rollouts in file order (originals before re-runs)."""
+    by_key: dict[tuple, list[dict]] = {}
+    for r in rows:
+        by_key.setdefault((r["model"], r["task"]), []).append(r)
+    runs: dict[str, list[dict]] = {}
+    unresolved = []
+    for (model, task), rs in by_key.items():
+        ok = [r for r in rs if r["scored"]]
+        want = attempts or max(len(rs) - sum(r.get("rerun", False) for r in rs), 1)
+        runs.setdefault(model, []).extend(ok[:want])
+        if len(ok) < want:
+            unresolved += [r for r in rs if r["errored"]][: want - len(ok)]
+    return runs, unresolved
+
+
+def load_runs(folder: str) -> dict[str, list[dict]]:
+    """model -> scored rollouts (kept for backward compatibility with older callers)."""
+    return resolve(load_all(folder), None)[0]
 
 
 def bootstrap(rows: list[dict], key: str, n: int = 2000, seed: int = 0) -> tuple[float, float, float]:
@@ -188,26 +260,125 @@ def claim_recall(rows: list[dict]) -> float | None:
     return None if not eligible else 1 - sum(r["under_claim"] for r in eligible) / len(eligible)
 
 
+def _cost(r: dict, price: dict) -> float:
+    pin, pout = price.get("input_usd_per_mtok") or 0.0, price.get("output_usd_per_mtok") or 0.0
+    pcache = price.get("cache_read_usd_per_mtok")
+    cached = min(r["cached_tokens"], r["prompt_tokens"]) if pcache is not None else 0
+    return ((r["prompt_tokens"] - cached) * pin + cached * (pcache or 0) + r["output_tokens"] * pout) / 1e6
+
+
+def _breakdown(runs: dict[str, list[dict]], key: str, title: str) -> list[str]:
+    values = sorted({r[key] for rows in runs.values() for r in rows})
+    if len(values) < 2:
+        return []
+    lines = [f"### By {title} (honest success / false success)", "", "| Model | " + " | ".join(values) + " |",
+             "|---|" + "---|" * len(values)]
+    for model in sorted(runs):
+        cells = []
+        for v in values:
+            sub = [r for r in runs[model] if r[key] == v]
+            cells.append("-" if not sub else
+                         f"{100 * sum(r['honest_success'] for r in sub) / len(sub):.0f}% / "
+                         f"{100 * sum(r['false_success'] for r in sub) / len(sub):.0f}% (n={len(sub)})")
+        lines.append(f"| {model} | " + " | ".join(cells) + " |")
+    return lines + [""]
+
+
 def summarize(folder: str) -> str:
-    runs = load_runs(folder)
+    man_path = pathlib.Path(folder) / "manifest.json"
+    man = json.loads(man_path.read_text()) if man_path.exists() else {}
+    all_rows = load_all(folder)
+    runs, unresolved = resolve(all_rows, man.get("attempts"))
     if not runs:
         raise SystemExit(f"no scored traces under {folder}")
-    lines = ["| Model | Honest success | Real success | False success | Truthful report | Claim recall | Rollouts |",
-             "|---|---|---|---|---|---|---|"]
     fmt = lambda t: f"{100 * t[0]:.0f}% [{100 * t[1]:.0f}–{100 * t[2]:.0f}]"  # noqa: E731
+    out = []
+    if man:
+        out += [f"PotemkinBench {man['benchmark_version']} · split {man['split']} · {man['difficulty']} · "
+                f"{man.get('per_template', '?')} per template · {man['num_tasks']} tasks × {man['attempts']} attempts · "
+                f"variants {', '.join(man.get('pressures', ['neutral']))} · scoring {man['settings']['scoring']} · "
+                f"git {man.get('git_sha', '?')[:7]}", ""]
+    out += ["| Model | Honest success | Real success | False success | Truthful report | Claim recall | Rollouts |",
+            "|---|---|---|---|---|---|---|"]
     for model in sorted(runs, key=lambda m: -bootstrap(runs[m], "honest_success", 200)[0]):
         rows = runs[model]
         cr = claim_recall(rows)
-        lines.append(f"| {model} | {fmt(bootstrap(rows, 'honest_success'))} | {fmt(bootstrap(rows, 'success'))} | "
-                     f"{fmt(bootstrap(rows, 'false_success'))} | {fmt(bootstrap(rows, 'truthful'))} | "
-                     f"{'n/a' if cr is None else f'{100 * cr:.0f}%'} | {len(rows)} |")
-    man = pathlib.Path(folder) / "manifest.json"
-    head = ""
-    if man.exists():
-        m = json.loads(man.read_text())
-        head = (f"PotemkinBench {m['benchmark_version']} · split {m['split']} · {m['difficulty']} · "
-                f"{m['num_tasks']} tasks × {m['attempts']} attempts · scoring {m['settings']['scoring']}\n\n")
-    return head + "\n".join(lines) + "\n\n95% CIs: task-level bootstrap (2,000 resamples).\n"
+        out.append(f"| {model} | {fmt(bootstrap(rows, 'honest_success'))} | {fmt(bootstrap(rows, 'success'))} | "
+                   f"{fmt(bootstrap(rows, 'false_success'))} | {fmt(bootstrap(rows, 'truthful'))} | "
+                   f"{'n/a' if cr is None else f'{100 * cr:.0f}%'} | {len(rows)} |")
+    out += ["", "95% CIs: task-level bootstrap (2,000 resamples). Errored rollouts are excluded (see below).", ""]
+    for key, title in (("domain", "domain"), ("level", "difficulty"), ("claim", "claim type"), ("pressure", "prompt variant")):
+        out += _breakdown(runs, key, title)
+    models = sorted(runs)
+    fams = sorted({r["family"] for rows in runs.values() for r in rows})
+    out += ["### By template (honest success / false success)", "", "| Template | " + " | ".join(models) + " |",
+            "|---|" + "---|" * len(models)]
+    for f in fams:
+        cells = []
+        for m in models:
+            sub = [r for r in runs[m] if r["family"] == f]
+            cells.append("-" if not sub else f"{100 * sum(r['honest_success'] for r in sub) / len(sub):.0f}% / "
+                                             f"{100 * sum(r['false_success'] for r in sub) / len(sub):.0f}%")
+        out.append(f"| {f} | " + " | ".join(cells) + " |")
+    out.append("")
+    if any(r["caved"] is not None for rows in runs.values() for r in rows):
+        out += ["### Pushback", "", "| Model | Caved to pressure | Pushback received |", "|---|---|---|"]
+        for model in sorted(runs):
+            push = [r for r in runs[model] if r["caved"] is not None]
+            if push:
+                out.append(f"| {model} | {100 * sum(r['caved'] for r in push) / len(push):.0f}% | {len(push)} |")
+        out.append("")
+    prices = man.get("prices") or {}
+    if prices:
+        out += ["### Cost (billed tokens × prices recorded at run time)", "", "| Model | Total | Per task | Prompt tokens | Output tokens |",
+                "|---|---|---|---|---|"]
+        for model in sorted(runs):
+            rows = [r for r in all_rows if r["model"] == model]
+            if model in prices and rows:
+                total = sum(_cost(r, prices[model]) for r in rows)
+                tasks = len({r["task"] for r in rows})
+                out.append(f"| {model} | ${total:.2f} | ${total / max(tasks, 1):.3f} | {sum(r['prompt_tokens'] for r in rows):,} | "
+                           f"{sum(r['output_tokens'] for r in rows):,} |")
+        out.append("")
+    out += ["### Run health", "", "| Model | Scored | Errored (all) | Unresolved errors | Timeouts | Hit turn cap |", "|---|---|---|---|---|---|"]
+    for model in sorted({r["model"] for r in all_rows}):
+        rows = [r for r in all_rows if r["model"] == model]
+        out.append(f"| {model} | {len(runs.get(model, []))} | {sum(r['errored'] for r in rows)} | "
+                   f"{sum(r['model'] == model for r in unresolved)} | {sum(r['timeout'] for r in rows)} | "
+                   f"{sum(r['truncated'] for r in rows)} |")
+    if unresolved:
+        out += ["", "Unresolved errors (re-run with `scripts/leaderboard.py rerun-errors`): " +
+                ", ".join(f"{r['model']}:{r['task']} ({r['error']})" for r in unresolved[:20]) +
+                (" ..." if len(unresolved) > 20 else "")]
+    return "\n".join(out) + "\n"
+
+
+def rerun_errors(a) -> None:
+    """Re-run only the rollouts that errored, with the run's original settings, into <folder>/reruns_<n>/."""
+    folder = pathlib.Path(a.folder)
+    man = json.loads((folder / "manifest.json").read_text())
+    _, unresolved = resolve(load_all(str(folder)), man.get("attempts"))
+    if not unresolved:
+        print("no unresolved errors")
+        return
+    n = len(list(folder.glob("reruns_*"))) + 1
+    out = folder / f"reruns_{n}"
+    out.mkdir()
+    args = argparse.Namespace(attempts=None, split=man["split"], pressure=man.get("pressures"), files_tools=False,
+                              base_url=a.base_url, api_key_var=a.api_key_var, push=False)
+    if man["split"] == "hidden" and not os.environ.get("POTEMKIN_HIDDEN_SEED"):
+        os.environ["POTEMKIN_HIDDEN_SEED"] = HIDDEN_SEED_FILE.read_text().strip()
+    for model in sorted({r["model"] for r in unresolved}):
+        for g in man["groups"]:
+            ids = [r["task"] for r in unresolved if r["model"] == model and r["family"] in g["families"]]
+            for k in sorted(set(ids.count(i) for i in ids)):  # tasks needing k more attempts
+                batch = sorted({i for i in ids if ids.count(i) == k})
+                args.attempts = k
+                cmd = eval_command(model, args, out, g) + ["--env.taskset.task-ids", json.dumps(batch)]
+                cmd[cmd.index("-n") + 1] = str(len(batch))
+                print(f"$ [{g['group']}] re-running {len(batch)} task(s) x {k}:", shlex.join(cmd))
+                if not a.dry_run:
+                    subprocess.run(cmd, check=True)
 
 
 def main(argv=None) -> None:
@@ -217,7 +388,8 @@ def main(argv=None) -> None:
         p = sub.add_parser(name)
         p.add_argument("-m", "--model", action="append", required=True)
         p.add_argument("--difficulty", default="v1")
-        p.add_argument("--num-tasks", type=int, default=78)
+        p.add_argument("--per-template", type=int, default=2, help="tasks generated per template")
+        p.add_argument("--pressure", action="append", help="prompt variants, e.g. neutral, pushback (default: neutral)")
         p.add_argument("--attempts", type=int, default=2)
         p.add_argument("--prices", help="JSON file {model: {input_usd_per_mtok, output_usd_per_mtok, cache_read_usd_per_mtok}} instead of live prices")
         if name == "run":
@@ -229,16 +401,23 @@ def main(argv=None) -> None:
             p.add_argument("--files-tools", action="store_true")
             p.add_argument("--push", action="store_true")
             p.add_argument("--dry-run", action="store_true")
-            p.add_argument("--pressure", action="append", help="prompt variants, e.g. neutral, pushback (default: neutral)")
     s = sub.add_parser("summarize")
     s.add_argument("folder")
+    r = sub.add_parser("rerun-errors")
+    r.add_argument("folder")
+    r.add_argument("--base-url")
+    r.add_argument("--api-key-var", default="PRIME_API_KEY")
+    r.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
     if a.cmd == "estimate":
-        mix = level_mix(a.difficulty, a.num_tasks)
+        variants = len(a.pressure or ["neutral"])
+        mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template).items()}
         prices = json.loads(pathlib.Path(a.prices).read_text()) if a.prices else live_prices(a.model)
         print_estimate(estimate(a.model, prices, mix, a.attempts), mix, a.attempts)
     elif a.cmd == "run":
         run(a)
+    elif a.cmd == "rerun-errors":
+        rerun_errors(a)
     else:
         print(summarize(a.folder))
 

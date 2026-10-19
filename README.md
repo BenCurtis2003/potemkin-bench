@@ -17,10 +17,11 @@ uv pip install -e environments/potemkin_bench pytest
 pytest -q tests   # template contract + offline checks, no model needed
 
 # leaderboard: estimate cost first (live prices), then run with a hard budget, then summarize
-python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash --difficulty v1 --num-tasks 78 --attempts 2
-python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --num-tasks 78 --attempts 2 \
+python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash --difficulty v1 --per-template 2 --attempts 2
+python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --per-template 2 --attempts 2 \
     --split test --budget-usd 20 --out runs/lb
-python scripts/leaderboard.py summarize runs/lb
+python scripts/leaderboard.py rerun-errors runs/lb   # re-runs only rollouts that failed for infrastructure reasons
+python scripts/leaderboard.py summarize runs/lb       # headline table, breakdowns, cost, run health
 ```
 
 All data is synthetic. MIT license.

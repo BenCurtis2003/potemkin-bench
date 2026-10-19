@@ -15,6 +15,12 @@ Five templates (one per domain: `tax_rate_change`, `org_change`, `change_freeze`
 public like every other template's, so held-out templates measure generalization beyond the training
 distribution, not secrecy.
 
+## Canonical public test set (v1.0)
+
+At v1.0 the benchmark freezes a public test set of **132 tasks: 3 per v1.0 template** (`split = "test"`,
+`difficulty = "v1"`, `num_tasks = 132`, default seed), fingerprinted so it never changes within a version.
+Anyone can run it; the leaderboard scores a separate 88-task hidden set (2 per template).
+
 ## How the hidden seed is kept
 
 - The seed is a random integer held by the maintainer outside the repository (and backed up separately).

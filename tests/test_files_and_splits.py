@@ -134,3 +134,12 @@ def test_each_toolset_module_launches_its_own_class():
             src = _inspect.getsource(importlib.import_module(type(ts).__module__))
             main = src.split('if __name__ == "__main__":', 1)[1]
             assert f"{type(ts).__name__}.run()" in main, type(ts).__name__
+
+
+def test_task_ids_filter_regenerates_identical_tasks():
+    full = PotemkinBenchTaskset(PotemkinBenchConfig(difficulty="hr", num_tasks=16, split="test")).load()
+    pick = [full[3].data.id, full[11].data.id]
+    sub = PotemkinBenchTaskset(PotemkinBenchConfig(difficulty="hr", num_tasks=16, split="test", task_ids=pick)).load()
+    assert [t.data.id for t in sub] == pick
+    by_id = {t.data.id: t for t in full}
+    assert all(_fp(t) == _fp(by_id[t.data.id]) for t in sub)  # same content as in the full run

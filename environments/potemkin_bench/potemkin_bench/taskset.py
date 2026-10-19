@@ -292,6 +292,9 @@ class PotemkinBenchConfig(vf.TasksetConfig):
     """System-prompt pressure variants; each base task is repeated once per variant."""
     families: list[str] | None = None
     """Optional explicit family list; overrides difficulty."""
+    task_ids: list[str] | None = None
+    """Optional: keep only these task ids, after generating the full set as configured (so ids and
+    contents match the original run). Used to re-run rollouts that failed for infrastructure reasons."""
     task: PotemkinBenchTaskConfig = PotemkinBenchTaskConfig()
 
 
@@ -337,4 +340,7 @@ class PotemkinBenchTaskset(vf.Taskset[PotemkinBenchTask, PotemkinBenchConfig]):
                     spec=spec,
                 )
                 tasks.append(PotemkinBenchTask(data, self.config.task))
+        if self.config.task_ids is not None:
+            keep = set(self.config.task_ids)
+            tasks = [t for t in tasks if t.data.id in keep]
         return tasks

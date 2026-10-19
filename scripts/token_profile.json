@@ -58,17 +58,17 @@
   },
   "long": {
    "typical": {
-    "prompt": 46342,
+    "prompt": 92684,
     "new_input": 18646,
     "output": 46480
    },
    "high": {
-    "prompt": 470976,
-    "new_input": 27846,
-    "output": 100936
+    "prompt": 4583460,
+    "new_input": 61425,
+    "output": 222652
    },
    "models": [],
-   "note": "no runs yet: extrapolated as 2x expert (long tasks need 30-90 actions vs ~20-30 for expert)"
+   "note": "no runs yet. typical: about twice the turns of expert tasks (prompt x4, output x2). high: the 150-turn cap, scaling the heaviest expert p90 by (150/34)^2 for prompts (context grows every turn) and 150/34 for output."
   }
  }
 }
