@@ -2,10 +2,10 @@
 
     # 1. what would it cost? (live prices from Prime Inference, token usage from past runs)
     python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash -m Qwen/Qwen3.5-9B \
-        --difficulty v1 --per-template 2 --attempts 2
+        --difficulty v1 --per-template 3 --attempts 2
 
     # 2. run it (refuses unless the HIGH estimate fits under --budget-usd)
-    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --per-template 2 \
+    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --per-template 3 \
         --attempts 2 --split test --budget-usd 25 --out leaderboard_runs/2026-10
 
     # 3. summarize every run in a folder into a table with task-level bootstrap CIs
@@ -388,7 +388,7 @@ def main(argv=None) -> None:
         p = sub.add_parser(name)
         p.add_argument("-m", "--model", action="append", required=True)
         p.add_argument("--difficulty", default="v1")
-        p.add_argument("--per-template", type=int, default=2, help="tasks generated per template")
+        p.add_argument("--per-template", type=int, default=3, help="tasks generated per template (3 x 44 v1 templates = 132)")
         p.add_argument("--pressure", action="append", help="prompt variants, e.g. neutral, pushback (default: neutral)")
         p.add_argument("--attempts", type=int, default=2)
         p.add_argument("--prices", help="JSON file {model: {input_usd_per_mtok, output_usd_per_mtok, cache_read_usd_per_mtok}} instead of live prices")

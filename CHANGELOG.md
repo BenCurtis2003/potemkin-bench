@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.17.1
+
+- Leaderboard default is now 3 tasks per template, so the hidden leaderboard set (132 tasks) matches the
+  size of the canonical public test set. No task or scoring changes.
+
 ## 0.17.0
 
 - **Locked leaderboard settings** (`scripts/leaderboard.py`): turn cap 50 for standard templates and 150 for

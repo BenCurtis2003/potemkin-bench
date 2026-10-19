@@ -19,7 +19,8 @@ distribution, not secrecy.
 
 At v1.0 the benchmark freezes a public test set of **132 tasks: 3 per v1.0 template** (`split = "test"`,
 `difficulty = "v1"`, `num_tasks = 132`, default seed), fingerprinted so it never changes within a version.
-Anyone can run it; the leaderboard scores a separate 88-task hidden set (2 per template).
+Anyone can run it. The leaderboard scores a separate **hidden set of the same size: 132 tasks, 3 per template**,
+generated from the secret seed, so the two sets share templates but no tasks.
 
 ## How the hidden seed is kept
 
