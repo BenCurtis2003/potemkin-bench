@@ -55,6 +55,20 @@
     "qwen/qwen3.5-4b(no-thinking)",
     "qwen/qwen3.5-9b"
    ]
+  },
+  "long": {
+   "typical": {
+    "prompt": 46342,
+    "new_input": 18646,
+    "output": 46480
+   },
+   "high": {
+    "prompt": 470976,
+    "new_input": 27846,
+    "output": 100936
+   },
+   "models": [],
+   "note": "no runs yet: extrapolated as 2x expert (long tasks need 30-90 actions vs ~20-30 for expert)"
   }
  }
 }

@@ -4,11 +4,13 @@
   "study_train_6fam": "2c99e5295f9ede595e7436880b45f106d6f8ff0acb9b114d38182a9d8583979e"
  },
  "templates": {
+  "access_request_approvals": "1dee6d4839a70a3daf5f26ca58cba047c72451d812c8603a0d6f6e3d03aec0da",
   "access_review": "c266ca23a07173a552e0dd9edfc37960018453f59e53af9609f0c2373c2a44a4",
   "account_hierarchy": "58aa20c6afc11ab3f5f055cf7ccbf7a11d7ffe3c48f0e8c6ca649b0667dc27f9",
   "asset_returns": "79674166db3fbce0eef3683fad58af94e782f929f4bd2b4cee089b363588caef",
   "bank_reconciliation": "016bf015cc4401f5ae72b91d223748119dd3c4b912caaaca3fa59b0f550cd8b4",
   "benefits_enrollment": "6dd337be7da85d505ef37ba1309d10fa11012ac417ac60909f6b21a3d8ed3206",
+  "bulk_price_update": "5fd8c822c695b844431b7169e580d878246e85690587e58632ed488bed6b6d43",
   "change_freeze": "a82f752d800308c110c4de8f0aab85a28acd975bbbe3e64ea7b80dce4c5a7a5c",
   "churn_outreach": "043858ac7cf466f9c3aa66b1ac4c46034c6c90525984b215d8513b1bbed75da7",
   "collections": "a34c229d68e8ee849a75d8706f0f4913f6fbae15da37f6b59aa0d8a02b8296e6",
@@ -21,6 +23,7 @@
   "dedupe@2": "5105e0582746ee18fb594234ace90977a7a103b171559fdf0dda7f97c9cabde1",
   "dedupe_messy": "7be9794fec4be7502fd9a56bc9cdba39520fafe41a5505840aa097e0fa659c24",
   "discount_approvals": "a29bb563cd2a55d6c7927bb5f7301956fd5dc20b06502b10e00d906b1424c67a",
+  "employee_transfer_batch": "591939f0842d624b0dfcaf6af3cb8426b8d1ec45e06ee388f634e2d68d23dd0c",
   "expense_audit": "08db95f57e6f5821b520d0c6f9b024c49fae98fedf7147a1d5c7b8e1e55afa25",
   "freight_allocation": "66a361e154acfb9ef8519d33c4db579f22a184d45520b3668895c3d5d3e7e3be",
   "impossible": "0109804364ba950d8edcbdc2b0423a27fe390e8c7bb2879c793c8b86a5df2883",
@@ -41,6 +44,7 @@
   "policy_ack_chase": "8a49834874fbdefb5d644de8308f320ab09db4e32b8775273f7c4508eca8b9bd",
   "postmortem_closeout": "4106bc2ab5f24be3d2bf48d8baeff102ef2cab0075d4f49f6082d92bce44f11c",
   "pto_accrual": "43b0ef81fcfc8c75ce1ddb6051b0dc3f7d403caf4d367cfdddf6a26e52745566",
+  "quarter_close_pipeline": "4ac55adc8bf8d9fb136591283ad4c730e5acffcc6cdea0d9fd9e575b12e0ca06",
   "quota_attribution": "7fbfc1b3da32bbf3cfed6ccf738ac1b04eacf8e20fd45495cc784febea39fac7",
   "recall_notice": "bf75b2c030d4dd2321239858c6ee25aa15bdf01ae82e7488fec4e7d0e4d11c2f",
   "refunds": "c93d1118773725a5147fc18455415a12c212ecdb850a9701ce863fbb6e889057",
@@ -51,6 +55,7 @@
   "reorder_cases": "1763e54c561427d6c870a2a48906ba698f9775120e7e7318591b2741745d3af8",
   "sla_breach_report": "11fdee693e93a0c895ed1fb46b041f457d7ebbdc491b7704d8352f1fb3ec7899",
   "stock_transfer": "3bbce65fba215c265fe524c80afb642cb28f486786132e6b3bfaff62d36d3910",
+  "supplier_exit": "8a9705205255897682d999962b44535de5783569f5fb89165009939b3cb4d0f1",
   "tax_rate_change": "de4aca150fdcd3345f3d85dd6e3782a79b54fa78a9293fc80c68201fd794ebe7",
   "territory_reassignment": "bade773edb32a82715670daa6b00ca6e383d533476c4b314bd4c6ab6ab7fe29a",
   "three_way_match": "c071a3b13706af42e8c2fdadb9e16346c0a4e349e3d2031964dc67c26c68c6e9",
@@ -58,5 +63,5 @@
   "vendor_onboarding": "af2b3fca664a1c92dee0355f52b33f582ea9843af25b25b47859a756cca4e39f",
   "vendor_payment_run": "8f6d04c1f8e1893ea9a36be1d6265d83a44ec3f4f4b1e3e52fe58a7bc7821c58"
  },
- "version": "0.15.0"
+ "version": "0.16.0"
 }

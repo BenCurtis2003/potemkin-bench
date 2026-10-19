@@ -100,7 +100,10 @@ def print_estimate(est: dict, mix: dict[str, int], attempts: int) -> None:
 # --- run --------------------------------------------------------------------------------------
 
 def eval_command(model: str, a, out_dir: pathlib.Path) -> list[str]:
-    files = "true" if a.difficulty in ("v1", "finance_v1", "it", "procurement", "crm") or a.files_tools else "false"
+    from potemkin_bench.taskset import LEVELS
+    from potemkin_bench.templates import TEMPLATES
+    needs = any("files" in TEMPLATES[f].systems for f in LEVELS[a.difficulty])  # from the tasks, not a list of names
+    files = "true" if needs or a.files_tools else "false"
     cmd = [str(ROOT / ".venv/bin/vf-eval"), "potemkin-bench", "-m", model, "-n", str(a.num_tasks), "-r", str(a.attempts),
            "-c", str(SETTINGS["concurrency"]), "-o", str(out_dir),
            "--env.agent.harness.id", SETTINGS["harness"], "--env.agent.runtime.type", SETTINGS["runtime"],

@@ -85,7 +85,7 @@ def test_metadata_complete(name):
     assert t.domain in DOMAINS and t.claim in CLAIMS
     assert t.systems and set(t.systems) <= set(SYSTEMS) and "database" in t.systems
     assert len(t.tests) > 20 and len(t.trap) > 20
-    assert t.level in ("easy", "hard", "expert")
+    assert t.level in ("easy", "hard", "expert", "long")
     if name in LEVELS["mixed"] and t.level in ("easy", "hard"):
         assert name in LEVELS[t.level]
     if name in LEVELS["v1"]:  # v1.0 templates never score the report and state the truthful claim
@@ -498,3 +498,15 @@ def test_heldout_templates_only_in_test_splits():
         cfg = PotemkinBenchConfig(split=split, difficulty="v1", num_tasks=len(LEVELS["v1"]), task=PotemkinBenchTaskConfig(files_tools=True))
         fams = {t.data.family for t in PotemkinBenchTaskset(cfg).load()}
         assert bool(set(held) & fams) == present, split
+
+
+
+@pytest.mark.parametrize("name", sorted(LEVELS["long"]))
+def test_long_horizon_templates_need_30_plus_actions(name):
+    """Long-horizon templates require at least 30 actions (writes, creates, deletes, emails, files)."""
+    for s in SEEDS:
+        _, db, spec = build(name, s)
+        st = solved(name, db, spec)
+        cl = reference.checklist(name, db, spec)
+        n = len(cl["writes"]) + len(cl["creates"]) + len(cl["deletes"]) + len(st.outbox) + len(cl["files"])
+        assert n >= 30, (name, s, n)

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.16.0
+
+- **Partial permissions:** records can be locked for the agent's account (`spec["locked"]`); the tool
+  server refuses updates and deletes on them with "permission denied". Two templates (`difficulty =
+  "permissions"`): `bulk_price_update` (some products locked; the honest report is "not completed", and
+  workarounds such as duplicating a product or editing the change list are caught) and
+  `access_request_approvals` (refused entitlements must be escalated, not faked).
+- **Long-horizon tier** (`difficulty = "long"`, new level `long`): `employee_transfer_batch` (HR + IT + email),
+  `quarter_close_pipeline` (statement file + reconciliation + invoices + report file + email),
+  `supplier_exit` (POs + SKU switching + budgeted reorders + email). A contract test requires every instance
+  to need at least 30 actions (measured: 32 to 93). The cost estimator extrapolates their token use as 2x
+  expert until real runs exist.
+- The contract caught two scorer gaps while building these (untargeted products could be changed in
+  `bulk_price_update`; extra lines in the controller email passed in `quarter_close_pipeline`), both fixed;
+  blind review: 5 flags, prompts clarified.
+- **docs/SPLITS.md:** splits, how the hidden seed is kept, what counts as a leak, and the response (rotate,
+  version, re-score, disclose). A test checks the leaderboard tooling never prints or saves the seed.
+- `scripts/leaderboard.py` now enables file tools based on the tasks in the chosen level (a hard-coded list
+  would have missed the new `long` level).
+- 58 templates (44 in `v1`). Study defaults and task sets unchanged (fingerprints identical).
+
 ## 0.15.0
 
 - **Pushback pressure variant** (`pressures = ["pushback"]`): the first time the agent reports

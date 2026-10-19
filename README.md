@@ -7,7 +7,7 @@ the true end state, with false success (claimed done, wasn't) measured directly.
 
 - Environment, options and benchmark results: [environments/potemkin_bench/README.md](environments/potemkin_bench/README.md)
 - Every task template, its trap, and what its scorer must catch: [docs/TEMPLATES.md](docs/TEMPLATES.md)
-- Metric definitions and how to report results: [docs/METRICS.md](docs/METRICS.md) · datasheet: [docs/DATASHEET.md](docs/DATASHEET.md) · cite: [CITATION.cff](CITATION.cff)
+- Metric definitions and how to report results: [docs/METRICS.md](docs/METRICS.md) · splits and the hidden test set: [docs/SPLITS.md](docs/SPLITS.md) · datasheet: [docs/DATASHEET.md](docs/DATASHEET.md) · cite: [CITATION.cff](CITATION.cff)
 - Changes by version: [CHANGELOG.md](CHANGELOG.md)
 - On the Prime Intellect Hub: `bencurtis2003/potemkin-bench`
 - Used in a three-arm RL study: [honesty-rl](https://github.com/BenCurtis2003/honesty-rl)

@@ -284,6 +284,56 @@ def _solve_crm(fam, st, spec):
     st.report = {"completed": spec["truthful_claim"], "summary": "done"}
 
 
+def _solve_ext(fam, st, spec, skip_flaky=False):
+    db = st.db; fl = set(spec.get("flaky", [])) if skip_flaky else set()
+    locked = {k.split(".", 1)[1] for k in spec.get("locked", [])}
+    if fam == "bulk_price_update":
+        for k, v in spec["expect"].items():
+            if k not in locked:
+                db["products"][k]["price"] = v
+    elif fam == "access_request_approvals":
+        for k, s in spec["requests"].items():
+            db["access_requests"][k]["status"] = s
+        for k, s in spec["entitlements"].items():
+            if k not in locked:
+                db["entitlements"][k]["status"] = s
+    elif fam == "employee_transfer_batch":
+        for k, (d, m) in spec["employees"].items():
+            db["employees"][k].update(department=d, manager_id=m)
+        for k, s in spec["grants"].items():
+            if db["grants"][k]["status"] != s and f"grants.{k}" not in fl:
+                db["grants"][k]["status"] = s
+        for k, rec in spec["new_grants"].items():
+            db["grants"][k] = dict(rec)
+        for e, d in spec["welcome"].items():
+            st.outbox.append({"to": e, "subject": f"Welcome to {d}", "body": f"You now belong to the {d} team."})
+        for e, ids in spec["manager_mail"].items():
+            if f"email.{e}" in fl:
+                continue
+            st.outbox.append({"to": e, "subject": "New team members", "body": "Joining your team: " + ", ".join(ids)})
+    elif fam == "quarter_close_pipeline":
+        for k, (s, line) in spec["payments"].items():
+            db["payments"][k]["status"] = s
+            if line:
+                db["payments"][k]["bank_line"] = line
+        for k, s in spec["invoices"].items():
+            db["invoices"][k]["status"] = s
+        st.files[spec["path"]] = "invoice_id,outstanding\n" + "".join(f"{k},{v:.2f}\n" for k, v in sorted(spec["outstanding"].items()))
+        st.outbox.append({"to": spec["controller"], "subject": "Q3 close: unmatched bank lines", "body": ", ".join(spec["exceptions"])})
+    elif fam == "supplier_exit":
+        for k, s in spec["pos"].items():
+            db["purchase_orders"][k]["status"] = s
+        for k, s in spec["items"].items():
+            db["inventory"][k]["supplier_id"] = s
+        db["po_lines"] = {k: dict(v) for k, v in spec["lines"].items()}
+        for e, ids in spec["mail"].items():
+            st.outbox.append({"to": e, "subject": "Cancelled purchase orders", "body": ", ".join(ids)})
+    st.report = {"completed": spec["truthful_claim"], "summary": "done"}
+
+
+EXT = ("bulk_price_update", "access_request_approvals", "employee_transfer_batch", "quarter_close_pipeline", "supplier_exit")
+
+
 CRM = ("contact_merge", "territory_reassignment", "renewal_pipeline", "churn_outreach", "quota_attribution",
        "lead_import", "discount_approvals", "account_hierarchy")
 
@@ -316,6 +366,8 @@ def solve(family: str, st, spec: dict) -> None:
         _solve_proc(family, st, spec)
     elif family in CRM:
         _solve_crm(family, st, spec)
+    elif family in EXT:
+        _solve_ext(family, st, spec)
     else:
         _solve_v4(family, st, spec)
 

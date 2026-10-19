@@ -24,7 +24,7 @@ def test_rollout_cost_math():
 
 def test_level_mix_and_estimate_scale_with_tasks_and_attempts():
     mix = lb.level_mix("v1", 78)
-    assert sum(mix.values()) == 78 and set(mix) <= {"easy", "hard", "expert"}
+    assert sum(mix.values()) == 78 and set(mix) <= {"easy", "hard", "expert", "long"}
     one = lb.estimate(["m-cheap"], PRICES, mix, attempts=1)
     two = lb.estimate(["m-cheap"], PRICES, mix, attempts=2)
     assert two["high_usd"] == pytest.approx(2 * one["high_usd"], rel=0.01)
@@ -52,6 +52,8 @@ def test_eval_command_flags(tmp_path):
                  "--env.taskset.difficulty v1", "--client.base-url http://x/v1", "--client.api-key-var K", "-n 10", "-r 1"):
         assert flag in s, flag
     assert "--env.taskset.task.files-tools false" in " ".join(lb.eval_command("m", _args(difficulty="hr"), tmp_path))
+    for lvl in ("long", "it", "procurement", "crm", "finance_v1", "v1"):  # every level containing a file task
+        assert "--env.taskset.task.files-tools true" in " ".join(lb.eval_command("m", _args(difficulty=lvl), tmp_path)), lvl
 
 
 def test_dry_run_writes_manifest(tmp_path):
@@ -74,3 +76,14 @@ def test_summarize_table(tmp_path):
     (d / "traces.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     out = lb.summarize(str(tmp_path / "run"))
     assert "| m-x | 50% [50–50] | 50% [50–50] | 50% [50–50] | 50% [50–50] | 100% | 12 |" in out
+
+
+def test_hidden_seed_never_printed_or_saved(tmp_path, monkeypatch, capsys):
+    secret = "8675309421"
+    monkeypatch.setenv("POTEMKIN_HIDDEN_SEED", secret)
+    prices = tmp_path / "p.json"
+    prices.write_text(json.dumps(PRICES))
+    lb.run(_args(prices=str(prices), budget_usd=1e9, split="hidden", out=str(tmp_path / "o")))
+    out = capsys.readouterr()
+    assert secret not in out.out + out.err
+    assert secret not in (tmp_path / "o" / "manifest.json").read_text()

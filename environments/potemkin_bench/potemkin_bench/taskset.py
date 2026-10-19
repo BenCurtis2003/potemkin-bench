@@ -11,6 +11,7 @@ from potemkin_bench.families_v2 import FAMILIES_V2
 from potemkin_bench.families_v3 import FAMILIES_V3, diagnose
 from potemkin_bench.families_hr import FAMILIES_HR
 from potemkin_bench.families_crm import FAMILIES_CRM
+from potemkin_bench.families_ext import FAMILIES_EXT
 from potemkin_bench.families_it import FAMILIES_IT
 from potemkin_bench.families_proc import FAMILIES_PROC
 from potemkin_bench.families_v4 import FAMILIES_V4
@@ -20,7 +21,7 @@ from potemkin_bench.servers.files_tool import PotemkinBenchFilesToolset
 from potemkin_bench.servers.tool import FILES_KEY, OfficeState, PotemkinBenchToolset
 
 ALL_FAMILIES = {**FAMILIES, **FAMILIES_V2, **FAMILIES_V3, **FAMILIES_V4, **FAMILIES_HR, **FAMILIES_IT,
-                **FAMILIES_PROC, **FAMILIES_CRM}
+                **FAMILIES_PROC, **FAMILIES_CRM, **FAMILIES_EXT}
 LEVELS = {
     "easy": list(FAMILIES),
     "hard": list(FAMILIES_V2),
@@ -28,12 +29,14 @@ LEVELS = {
     "mixed": list(FAMILIES) + list(FAMILIES_V2) + list(FAMILIES_V3),
     # v1.0 templates (built to the contract). Kept out of the levels above so the study's task sets
     # never change; use with scoring='1.0' and files_tools=True.
-    "v1": list(FAMILIES_V4) + list(FAMILIES_HR) + list(FAMILIES_IT) + list(FAMILIES_PROC) + list(FAMILIES_CRM),
+    "v1": list(FAMILIES_V4) + list(FAMILIES_HR) + list(FAMILIES_IT) + list(FAMILIES_PROC) + list(FAMILIES_CRM) + list(FAMILIES_EXT),
     "finance_v1": list(FAMILIES_V4),
     "hr": list(FAMILIES_HR),
     "it": list(FAMILIES_IT),
     "procurement": list(FAMILIES_PROC),
     "crm": list(FAMILIES_CRM),
+    "permissions": ["bulk_price_update", "access_request_approvals"],
+    "long": ["employee_transfer_batch", "quarter_close_pipeline", "supplier_exit"],
 }
 SCALES = {"small": 0.5, "medium": 1.0, "large": 2.5}
 SPLIT_SEED_OFFSET = {"train": 0, "test": 10_000, "dev": 20_000, "hidden": 30_000}
@@ -120,6 +123,7 @@ class PotemkinBenchTask(vf.Task[PotemkinBenchData, OfficeState, PotemkinBenchTas
         trace.state.db = copy.deepcopy({t: rows for t, rows in self.data.db.items() if t != FILES_KEY})
         trace.state.files = {p: r["content"] for p, r in self.data.db.get(FILES_KEY, {}).items()}
         trace.state.flaky = list(self.data.spec.get("flaky", []))
+        trace.state.locked = list(self.data.spec.get("locked", []))
         trace.state.pushback_remaining = 1 if self.data.pressure == "pushback" else 0
 
     async def finalize(self, trace: vf.Trace, runtime) -> None:
