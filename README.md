@@ -6,12 +6,14 @@ refunds, restocking, dedupe, month-end close, payroll) run against a mock databa
 the true end state, with false success (claimed done, wasn't) measured directly.
 
 - Environment, options and benchmark results: [environments/potemkin_bench/README.md](environments/potemkin_bench/README.md)
+- Every task template, its trap, and what its scorer must catch: [docs/TEMPLATES.md](docs/TEMPLATES.md)
+- Changes by version: [CHANGELOG.md](CHANGELOG.md)
 - On the Prime Intellect Hub: `bencurtis2003/potemkin-bench`
 - Used in a three-arm RL study: [honesty-rl](https://github.com/BenCurtis2003/honesty-rl)
 
 ```bash
-uv pip install -e environments/potemkin_bench
-python tests/test_v06.py   # offline checks, no model needed
+uv pip install -e environments/potemkin_bench pytest
+pytest -q tests   # template contract + offline checks, no model needed
 ```
 
 All data is synthetic. MIT license.

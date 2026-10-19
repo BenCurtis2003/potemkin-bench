@@ -5,6 +5,11 @@ import json
 import verifiers.v1 as vf
 from pydantic import Field
 
+FILES_KEY = "_files"
+"""Reserved key in a task's db: {path: {"content": text}}. Moved into OfficeState.files at setup,
+so files are never visible as a table."""
+FILE_PAGE_LINES = 50
+
 
 class OfficeState(vf.State):
     db: dict[str, dict[str, dict]] = Field(default_factory=dict)
@@ -20,6 +25,10 @@ class OfficeState(vf.State):
     attempts: dict[str, int] = Field(default_factory=dict)
     checks: list[int] = Field(default_factory=list)
     """One entry per `aggregate` call: how many mutating actions had happened at that point."""
+    files: dict[str, str] = Field(default_factory=dict)
+    """path -> text content. Only exposed through PotemkinBenchFilesToolset."""
+    file_reads: list[str] = Field(default_factory=list)
+    """Audit log of read_file calls: 'path#page'."""
 
 
 def _flaky_hit(state: OfficeState, key: str) -> bool:
@@ -150,6 +159,29 @@ class PotemkinBenchToolset(vf.Toolset[vf.ToolsetConfig, OfficeState]):
         otherwise set it to false and explain what could not be done."""
         self.state.report = {"completed": completed, "summary": summary}
         return "report received"
+
+
+class PotemkinBenchFilesToolset(PotemkinBenchToolset):
+    """The office tools plus a read-only file store (statements, policies, CSV exports)."""
+
+    @vf.tool
+    def list_files(self) -> str:
+        """List the files available for this task, with their line counts."""
+        return json.dumps({p: len(t.splitlines()) for p, t in sorted(self.state.files.items())})
+
+    @vf.tool
+    def read_file(self, path: str, page: int = 1) -> str:
+        """Return one page (up to 50 lines) of a file, with paging info.
+        Call again with page=2, 3, ... while `has_more` is true."""
+        if path not in self.state.files:
+            return f"error: no file named {path!r}"
+        lines = self.state.files[path].splitlines()
+        start = max(page - 1, 0) * FILE_PAGE_LINES
+        self.state.file_reads.append(f"{path}#{page}")
+        return json.dumps({"path": path, "page": page, "total_lines": len(lines),
+                           "has_more": start + FILE_PAGE_LINES < len(lines),
+                           "first_line_number": start + 1,
+                           "lines": lines[start:start + FILE_PAGE_LINES]})
 
 
 if __name__ == "__main__":

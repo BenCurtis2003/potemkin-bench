@@ -1,0 +1,113 @@
+"""File tools and taskset wiring for file-based templates."""
+import asyncio
+import json
+from types import SimpleNamespace
+
+import pytest
+import verifiers.v1 as vf
+from verifiers.v1.mcp.server import _call_state
+from verifiers.v1.utils.decorators import discover_decorated
+
+from potemkin_bench.servers.tool import FILE_PAGE_LINES, FILES_KEY, OfficeState, PotemkinBenchFilesToolset, PotemkinBenchToolset
+from potemkin_bench.taskset import (PotemkinBenchConfig, PotemkinBenchTask, PotemkinBenchTaskConfig,
+                                    PotemkinBenchTaskset)
+
+
+def call(toolset, state, fn, **kw):
+    token = _call_state.set(state)
+    try:
+        return getattr(toolset, fn)(**kw)
+    finally:
+        _call_state.reset(token)
+
+
+def test_file_tools_page_and_log():
+    ts = PotemkinBenchFilesToolset(vf.ToolsetConfig())
+    text = "\n".join(f"row {i}" for i in range(1, 121))
+    st = OfficeState(files={"a/b.csv": text})
+    assert json.loads(call(ts, st, "list_files")) == {"a/b.csv": 120}
+    p1 = json.loads(call(ts, st, "read_file", path="a/b.csv"))
+    p3 = json.loads(call(ts, st, "read_file", path="a/b.csv", page=3))
+    assert p1["lines"][0] == "row 1" and len(p1["lines"]) == FILE_PAGE_LINES and p1["has_more"]
+    assert p3["first_line_number"] == 101 and p3["lines"][-1] == "row 120" and not p3["has_more"]
+    assert call(ts, st, "read_file", path="nope").startswith("error")
+    assert st.file_reads == ["a/b.csv#1", "a/b.csv#3"]
+
+
+def test_study_tool_list_unchanged():
+    """Without files_tools, tasks get exactly the original tool server (no file tools)."""
+    assert [type(t) for t in PotemkinBenchTask.toolsets(PotemkinBenchTaskConfig())] == [PotemkinBenchToolset]
+    assert [type(t) for t in PotemkinBenchTask.toolsets(PotemkinBenchTaskConfig(files_tools=True))] == [PotemkinBenchFilesToolset]
+    tools = lambda cls: {fn.__name__ for fn in discover_decorated(cls(vf.ToolsetConfig()), "tool")}  # noqa: E731
+    base = tools(PotemkinBenchToolset)
+    assert base == {"list_tables", "list_records", "get_record", "update_record", "delete_record",
+                    "create_record", "send_email", "aggregate", "submit_report"}
+    assert tools(PotemkinBenchFilesToolset) == base | {"list_files", "read_file"}
+
+
+def test_file_templates_need_files_tools():
+    with pytest.raises(ValueError, match="files_tools"):
+        PotemkinBenchTaskset(PotemkinBenchConfig(difficulty="v1", num_tasks=5)).load()
+    cfg = PotemkinBenchConfig(difficulty="v1", num_tasks=5, task=PotemkinBenchTaskConfig(files_tools=True, scoring="1.0"))
+    tasks = PotemkinBenchTaskset(cfg).load()
+    assert {t.data.family for t in tasks} == {"reorder@2", "bank_reconciliation", "expense_audit",
+                                              "vendor_payment_run", "tax_rate_change"}
+
+
+def test_setup_moves_files_out_of_the_database():
+    cfg = PotemkinBenchConfig(families=["bank_reconciliation"], num_tasks=1, task=PotemkinBenchTaskConfig(files_tools=True))
+    task = PotemkinBenchTaskset(cfg).load()[0]
+    trace = SimpleNamespace(state=OfficeState())
+    asyncio.run(task.setup(trace, None))
+    assert FILES_KEY not in trace.state.db and "payments" in trace.state.db
+    assert list(trace.state.files) == ["bank/statement_2026-10.csv"]
+    assert FILES_KEY in task.data.db  # the task data itself is untouched
+
+
+# --- splits ----------------------------------------------------------------------------------
+
+def _load(split, **kw):
+    cfg = PotemkinBenchConfig(split=split, difficulty="mixed", scale="small", num_tasks=28,
+                              task=PotemkinBenchTaskConfig(files_tools=True), **kw)
+    return PotemkinBenchTaskset(cfg).load()
+
+
+def _fp(task):
+    return json.dumps([task.data.prompt, task.data.db], sort_keys=True, default=list)
+
+
+def test_splits_are_disjoint(monkeypatch):
+    monkeypatch.setenv("POTEMKIN_HIDDEN_SEED", "424242")
+    sets = {s: {_fp(t) for t in _load(s)} for s in ("train", "dev", "test", "hidden")}
+    for a in sets:
+        for b in sets:
+            if a < b:
+                assert not sets[a] & sets[b], (a, b)
+    assert all(t.data.id.startswith("hidden-") for t in _load("hidden"))
+
+
+def test_hidden_split_needs_the_secret(monkeypatch):
+    monkeypatch.delenv("POTEMKIN_HIDDEN_SEED", raising=False)
+    with pytest.raises(ValueError, match="POTEMKIN_HIDDEN_SEED"):
+        _load("hidden")
+    monkeypatch.setenv("POTEMKIN_HIDDEN_SEED", "1")
+    a = {_fp(t) for t in _load("hidden")}
+    monkeypatch.setenv("POTEMKIN_HIDDEN_SEED", "2")
+    assert a != {_fp(t) for t in _load("hidden")}  # rotating the secret gives a new hidden set
+
+
+def test_heldout_templates_never_reach_train_or_dev(monkeypatch):
+    import dataclasses
+
+    import potemkin_bench.templates as T
+    monkeypatch.setitem(T.TEMPLATES, "payroll", dataclasses.replace(T.TEMPLATES["payroll"], heldout=True))
+    for split in ("train", "dev"):
+        assert "payroll" not in {t.data.family for t in _load(split)}
+    assert "payroll" in {t.data.family for t in _load("test")}
+    with pytest.raises(ValueError, match="held out"):
+        PotemkinBenchTaskset(PotemkinBenchConfig(split="train", families=["payroll"], num_tasks=2)).load()
+
+
+def test_unknown_split_rejected():
+    with pytest.raises(ValueError, match="unknown split"):
+        _load("validation")

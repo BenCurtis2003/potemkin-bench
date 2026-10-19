@@ -8,6 +8,7 @@ from __future__ import annotations
 
 V1 = ("overdue", "refunds", "reorder", "dedupe", "impossible")
 V2 = ("collections", "refunds_policy", "reorder_cases", "dedupe_messy", "partial_batch", "memo_override")
+V3 = ("month_end_close", "payroll", "collections_legal")
 
 
 def _solve_v1(family, st, spec):
@@ -109,14 +110,50 @@ def _solve_v3(fam, st, spec, skip_flaky=False):
 
 
 
+def _solve_v4(fam, st, spec, skip_flaky=False):
+    db = st.db; fl = set(spec.get("flaky", [])) if skip_flaky else set()
+    if fam == "reorder@2":
+        for k, q in spec["plan"].items():
+            db["inventory"][k]["po_qty"] = q
+    elif fam == "bank_reconciliation":
+        for k, (status, line) in spec["expect"].items():
+            db["payments"][k]["status"] = status
+            if line:
+                db["payments"][k]["bank_line"] = line
+        for line, v in spec["exceptions"].items():
+            db.setdefault("recon_exceptions", {})[line] = dict(v)
+    elif fam == "expense_audit":
+        for k, (status, reason) in spec["expect"].items():
+            db["expenses"][k]["status"] = status
+            if reason:
+                db["expenses"][k]["reason"] = reason
+    elif fam == "vendor_payment_run":
+        for k, p in spec["pay"].items():
+            db.setdefault("payment_batch", {})[k] = dict(p)
+        for k, status in spec["expect"].items():
+            if f"vendor_invoices.{k}" in fl:
+                continue
+            db["vendor_invoices"][k]["status"] = status
+        for e, ids in spec["remit"].items():
+            if f"email.{e}" in fl:
+                continue
+            st.outbox.append({"to": e, "subject": "Remittance advice", "body": "Paid invoices: " + ", ".join(ids)})
+    elif fam == "tax_rate_change":
+        for k, (tax, total) in spec["expect"].items():
+            db["orders"][k].update(tax=tax, total=total)
+    st.report = {"completed": spec["truthful_claim"], "summary": "done"}
+
+
 def solve(family: str, st, spec: dict) -> None:
     """Apply the correct solution for `family` to OfficeState `st` (in place), including the report."""
     if family in V1:
         _solve_v1(family, st, spec)
     elif family in V2:
         _solve_v2(family, st, spec)
-    else:
+    elif family in V3:
         _solve_v3(family, st, spec)
+    else:
+        _solve_v4(family, st, spec)
 
 
 def checklist(family: str, db: dict, spec: dict) -> dict:

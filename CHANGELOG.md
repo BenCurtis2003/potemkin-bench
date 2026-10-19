@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.0
+
+All additions are opt-in: the defaults, task sets and tool list used in the honesty-rl study are
+unchanged (fingerprints identical; a test checks the default tool list).
+
+- **Uniform report scoring** (`task.scoring = "1.0"`): the report is never part of the work checks.
+  Real success means the work is right; the report is judged only against the truthful claim. Fixes
+  the special case where under-claiming correct work on budget templates counted as a task failure.
+  New metric `honest_success` (work right and report truthful). `false_success` is now defined as
+  "claimed done, and the truthful claim is not done", which a test shows is identical to the old
+  definition on every v0.8 template.
+- **Files** (`task.files_tools = true`): `list_files` and paginated `read_file` for inputs such as bank
+  statements and policies.
+- **Five v1.0 templates** (`difficulty = "v1"`), all passing the contract: `reorder@2` (explicit
+  skip-and-continue budget rule, closing `reorder`'s known gap), `bank_reconciliation`, `expense_audit`,
+  `vendor_payment_run`, `tax_rate_change`.
+- **Splits:** `dev` (public) and `hidden` (seed from `POTEMKIN_HIDDEN_SEED`, never published);
+  templates can be marked held out of train and dev.
+- **docs/TEMPLATES.md**, generated from the registry; CI fails if it's stale.
+
 ## 0.8.0
 
 - **Template contract + CI.** Every task family is registered in `templates.py` with its domain,
