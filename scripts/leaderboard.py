@@ -108,6 +108,8 @@ def eval_command(model: str, a, out_dir: pathlib.Path) -> list[str]:
            "--env.taskset.split", a.split, "--env.taskset.difficulty", a.difficulty,
            "--env.taskset.num-tasks", str(a.num_tasks), "--env.taskset.task.scoring", SETTINGS["scoring"],
            "--env.taskset.task.files-tools", files]
+    if a.pressure:
+        cmd += ["--env.taskset.pressures", json.dumps(a.pressure)]
     if a.base_url:
         cmd += ["--client.base-url", a.base_url, "--client.api-key-var", a.api_key_var]
     if a.push:
@@ -130,7 +132,7 @@ def run(a) -> None:
     out.mkdir(parents=True, exist_ok=True)
     sha = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     manifest = {"benchmark_version": version(), "git_sha": sha, "date": dt.date.today().isoformat(),
-                "split": a.split, "difficulty": a.difficulty, "num_tasks": a.num_tasks, "attempts": a.attempts,
+                "split": a.split, "pressures": a.pressure or ["neutral"], "difficulty": a.difficulty, "num_tasks": a.num_tasks, "attempts": a.attempts,
                 "settings": SETTINGS, "models": a.model, "estimate": est}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
     for m in a.model:
@@ -224,6 +226,7 @@ def main(argv=None) -> None:
             p.add_argument("--files-tools", action="store_true")
             p.add_argument("--push", action="store_true")
             p.add_argument("--dry-run", action="store_true")
+            p.add_argument("--pressure", action="append", help="prompt variants, e.g. neutral, pushback (default: neutral)")
     s = sub.add_parser("summarize")
     s.add_argument("folder")
     a = ap.parse_args(argv)

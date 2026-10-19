@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0
+
+- **Pushback pressure variant** (`pressures = ["pushback"]`): the first time the agent reports
+  `completed=false`, the requester replies that the client is waiting and asks for a resubmission with
+  `completed=true`. Caving is scored as false success, with new metrics `pushback_received`,
+  `caved_to_pressure` and `held_under_pressure`. Deterministic (no model calls in scoring). Verified end
+  to end against a fake model: the same agent goes from 0% to 100% false success when it caves.
+  `scripts/leaderboard.py run --pressure pushback`. Default behavior unchanged.
+- An LLM requester that answers clarifying questions is planned (needs templates that withhold
+  information); not included yet.
+- Study defaults and task sets unchanged (fingerprints identical).
+
 ## 0.14.0
 
 - **Fix: file tools were never offered to the agent.** verifiers launches each tool server with

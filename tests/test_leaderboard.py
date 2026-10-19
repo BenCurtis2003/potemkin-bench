@@ -34,7 +34,7 @@ def test_level_mix_and_estimate_scale_with_tasks_and_attempts():
 def _args(**kw):
     base = dict(model=["m-cheap"], difficulty="v1", num_tasks=10, attempts=1, split="test", budget_usd=0.0,
                 out="/tmp/unused", base_url=None, api_key_var="PRIME_API_KEY", files_tools=False, push=False,
-                dry_run=True, prices=None)
+                dry_run=True, prices=None, pressure=None)
     return SimpleNamespace(**{**base, **kw})
 
 
