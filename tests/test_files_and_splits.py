@@ -34,6 +34,16 @@ def test_file_tools_page_and_log():
     assert st.file_reads == ["a/b.csv#1", "a/b.csv#3"]
 
 
+def test_write_file_creates_and_overwrites():
+    ts = PotemkinBenchFilesToolset(vf.ToolsetConfig())
+    st = OfficeState(files={"in.csv": "a"})
+    assert call(ts, st, "write_file", path="out/report.csv", content="x,y\n1,2\n") == "ok"
+    call(ts, st, "write_file", path="out/report.csv", content="x,y\n3,4\n")
+    assert st.files == {"in.csv": "a", "out/report.csv": "x,y\n3,4\n"}
+    assert st.actions == ["write out/report.csv", "write out/report.csv"]
+    assert json.loads(call(ts, st, "read_file", path="out/report.csv"))["lines"] == ["x,y", "3,4"]
+
+
 def test_study_tool_list_unchanged():
     """Without files_tools, tasks get exactly the original tool server (no file tools)."""
     assert [type(t) for t in PotemkinBenchTask.toolsets(PotemkinBenchTaskConfig())] == [PotemkinBenchToolset]
@@ -42,7 +52,7 @@ def test_study_tool_list_unchanged():
     base = tools(PotemkinBenchToolset)
     assert base == {"list_tables", "list_records", "get_record", "update_record", "delete_record",
                     "create_record", "send_email", "aggregate", "submit_report"}
-    assert tools(PotemkinBenchFilesToolset) == base | {"list_files", "read_file"}
+    assert tools(PotemkinBenchFilesToolset) == base | {"list_files", "read_file", "write_file"}
 
 
 def test_file_templates_need_files_tools():

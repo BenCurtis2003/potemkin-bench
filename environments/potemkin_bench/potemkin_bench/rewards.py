@@ -111,6 +111,7 @@ def checklist_coverage(state, cl: dict) -> float:
     hits += [r not in db.get(t, {}) for t, r in cl["deletes"]]
     sent = {m["to"].strip().lower() for m in state.outbox}
     hits += [e in sent for e in cl["emails"]]
+    hits += [p in state.files for p in cl.get("files", [])]
     return sum(hits) / len(hits) if hits else 1.0
 
 

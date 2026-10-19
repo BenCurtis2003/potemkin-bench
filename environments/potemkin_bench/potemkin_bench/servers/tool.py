@@ -162,7 +162,7 @@ class PotemkinBenchToolset(vf.Toolset[vf.ToolsetConfig, OfficeState]):
 
 
 class PotemkinBenchFilesToolset(PotemkinBenchToolset):
-    """The office tools plus a read-only file store (statements, policies, CSV exports)."""
+    """The office tools plus a file store: input files (statements, policies) and files the agent writes."""
 
     @vf.tool
     def list_files(self) -> str:
@@ -182,6 +182,13 @@ class PotemkinBenchFilesToolset(PotemkinBenchToolset):
                            "has_more": start + FILE_PAGE_LINES < len(lines),
                            "first_line_number": start + 1,
                            "lines": lines[start:start + FILE_PAGE_LINES]})
+
+    @vf.tool
+    def write_file(self, path: str, content: str) -> str:
+        """Create or overwrite a text file (e.g. a CSV report) with the given content."""
+        self.state.files[path] = content
+        self.state.actions.append(f"write {path}")
+        return "ok"
 
 
 if __name__ == "__main__":

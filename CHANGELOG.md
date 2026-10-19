@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.12.0
+
+- **IT service desk domain: 8 templates** (`difficulty = "it"`, also in `v1`), all passing the contract:
+  `ticket_triage`, `sla_breach_report`, `access_review`, `asset_returns`, `password_reset_batch`,
+  `change_freeze`, `license_true_up`, `postmortem_closeout`. 17 trap policies. Blind ambiguity review
+  before release: 3 flags, 1 real (email wording, clarified). Not yet difficulty-calibrated against
+  models.
+- **`write_file`** in the file tools: agents can produce report files (`sla_breach_report` writes a CSV).
+  The contract mutates written files (missing, a row dropped or added, out of order), and the
+  checklist grader counts written files as outputs.
+- Contract: a check also counts as live if it catches one of the template's declared shortcuts.
+- Study defaults and task sets unchanged (fingerprints identical).
+
 ## 0.11.0
 
 - **Blind ambiguity review** of all 27 templates (an independent reviewer saw only prompts and sample

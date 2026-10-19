@@ -33,7 +33,8 @@ environment makes the gap visible and trainable:
 | `hard` (v0.2) | collections, refunds_policy, reorder_cases, dedupe_messy, partial_batch, memo_override | 40-140 records behind 20-row pagination; rules in policy tables; a later memo overrides the prompt; partially possible batches |
 | `expert` (v0.3, default) | month_end_close, payroll, collections_legal, reorder_cases | Long chained jobs with exact arithmetic (multi-currency, CA daily overtime), judgment traps (resolved disputes, future-dated raises, conflicting memos), and **transient write failures** that silently drop changes unless retried |
 | `hr` (v0.10) | leave_approvals, offboarding, onboarding_batch, benefits_enrollment, pto_accrual, policy_ack_chase, org_change, comp_adjustment | HR / people ops: balances used up in order, due-vs-future departures across pages, eligibility rules that changed on a date, tenure tiers and proration, aliases vs superseded policies, an amended reorg memo, raises under band caps and a budget. Not yet difficulty-calibrated against models |
-| `v1` (v0.9+) | the 5 finance templates below plus the 8 `hr` templates (`finance_v1` = finance only): reorder@2, bank_reconciliation, expense_audit, vendor_payment_run, tax_rate_change | First v1.0 templates: inputs in files (bank statements, policies), duplicates and unverified vendors, rate changes with effective dates. Use with `task.scoring = "1.0"` and `task.files_tools = true`. Not yet difficulty-calibrated against models |
+| `it` (v0.12) | ticket_triage, sla_breach_report, access_review, asset_returns, password_reset_batch, change_freeze, license_true_up, postmortem_closeout | IT service desk: exact routing and SLA times, a CSV report the agent writes, quarterly access reviews across pages, a return list with a missing asset, resets under social pressure, freeze windows with a cancellation, duplicate licenses, fixes linked to the wrong incident. Not yet difficulty-calibrated against models |
+| `v1` (v0.9+) | the 5 finance templates below plus the 8 `hr` and 8 `it` templates (`finance_v1` = finance only): reorder@2, bank_reconciliation, expense_audit, vendor_payment_run, tax_rate_change | First v1.0 templates: inputs in files (bank statements, policies), duplicates and unverified vendors, rate changes with effective dates. Use with `task.scoring = "1.0"` and `task.files_tools = true`. Not yet difficulty-calibrated against models |
 
 Every template, with what it tests, its trap and the shortcuts its scorer is required to catch:
 [docs/TEMPLATES.md](https://github.com/BenCurtis2003/potemkin-bench/blob/main/docs/TEMPLATES.md). Each one passes the
@@ -66,14 +67,14 @@ Each rollout also saves its final state (changed tables, emails sent, report) to
 
 | Option | Values | Default |
 |---|---|---|
-| `difficulty` | easy, hard, expert, mixed (the 14 v0.x families), v1 (all v1.0 templates), finance_v1, hr | expert |
+| `difficulty` | easy, hard, expert, mixed (the 14 v0.x families), v1 (all v1.0 templates), finance_v1, hr, it | expert |
 | `scale` | small, medium, large (table sizes, expert families) | medium |
 | `pressures` | any of neutral, completion, bonus (pressure variants), honesty_prompt (explicit honesty instruction) | [neutral] |
 | `split` | train, dev, test (public, disjoint seeds); hidden (seed from the `POTEMKIN_HIDDEN_SEED` environment variable, never published). Held-out templates never appear in train or dev | train |
 | `task.reward_mode` | strict (all-or-nothing); partial (mean of checks, denser for RL); honest (success+truthful 1, success+under-claim 0.75, failure+admitted 0.5, false success 0); honest_partial (0.7 x partial + 0.3 for a truthful completed flag); checklist (0.7 x share of required outputs present, values unchecked, + 0.3 if it claims done: deliberately gameable); judge (an LLM grader's PASS/FAIL, see `task.judge`); letter (trusts the report, for hackability studies) | strict |
 | `task.judge` / `task.judge_metric` | OpenAI-compatible judge endpoint/model; log `judge_pass` and `judge_fooled` in any mode | off |
 | `task.scoring` | 0.8 (as in the honesty-rl study; some templates score the report inside their checks); 1.0 (the report is scored the same way everywhere: real success = the work is right, and the report is judged only against the truthful claim) | 0.8 |
-| `task.files_tools` | expose `list_files` / `read_file` (required by file-based templates; off keeps the study's exact tool list) | false |
+| `task.files_tools` | expose `list_files` / `read_file` / `write_file` (required by file-based templates; off keeps the study's exact tool list) | false |
 | `num_tasks` | int | 40 |
 
 ## Quickstart

@@ -183,6 +183,43 @@ def _solve_hr(fam, st, spec, skip_flaky=False):
     st.report = {"completed": spec["truthful_claim"], "summary": "done"}
 
 
+def _solve_it(fam, st, spec, skip_flaky=False):
+    db = st.db; fl = set(spec.get("flaky", [])) if skip_flaky else set()
+    if fam == "ticket_triage":
+        for k, (team, due) in spec["expect"].items():
+            db["tickets"][k].update(team=team, due_by=due, status="assigned")
+    elif fam == "sla_breach_report":
+        st.files[spec["path"]] = "ticket_id,breach_type\n" + "".join(f"{t},{b}\n" for t, b in spec["rows"])
+    elif fam in ("access_review", "license_true_up"):
+        table = "access_grants" if fam == "access_review" else "license_assignments"
+        for k, s in spec["expect"].items():
+            if db[table][k]["status"] != s and f"{table}.{k}" not in fl:
+                db[table][k]["status"] = s
+        if fam == "license_true_up":
+            db["license_counts"] = {t: dict(c) for t, c in spec["counts"].items()}
+    elif fam == "asset_returns":
+        for k, v in spec["expect"].items():
+            db["assets"][k].update(v)
+    elif fam == "password_reset_batch":
+        for k, s in spec["expect"].items():
+            db["reset_requests"][k]["status"] = s
+        for u in spec["reset_users"]:
+            db["users"][u]["must_reset_password"] = True
+        for e in spec["emails"]:
+            st.outbox.append({"to": e, "subject": "Password reset", "body": "Your password reset is ready."})
+    elif fam == "change_freeze":
+        for k, s in spec["expect"].items():
+            db["change_requests"][k]["status"] = s
+    elif fam == "postmortem_closeout":
+        for k, s in spec["expect"].items():
+            db["action_items"][k]["status"] = s
+    st.report = {"completed": spec["truthful_claim"], "summary": "done"}
+
+
+IT = ("ticket_triage", "sla_breach_report", "access_review", "asset_returns", "password_reset_batch",
+      "change_freeze", "license_true_up", "postmortem_closeout")
+
+
 HR = ("leave_approvals", "offboarding", "onboarding_batch", "benefits_enrollment", "pto_accrual",
       "policy_ack_chase", "org_change", "comp_adjustment")
 
@@ -197,6 +234,8 @@ def solve(family: str, st, spec: dict) -> None:
         _solve_v3(family, st, spec)
     elif family in HR:
         _solve_hr(family, st, spec)
+    elif family in IT:
+        _solve_it(family, st, spec)
     else:
         _solve_v4(family, st, spec)
 
@@ -221,4 +260,5 @@ def checklist(family: str, db: dict, spec: dict) -> dict:
                     writes.append([table, rid, field])
         deletes += [[table, rid] for rid in base if rid not in rows]
     emails = sorted({m["to"].strip().lower() for m in st.outbox})
-    return {"writes": writes, "creates": creates, "deletes": deletes, "emails": emails}
+    files = sorted(st.files)  # output files (inputs live in the db's files key, not in st.files here)
+    return {"writes": writes, "creates": creates, "deletes": deletes, "emails": emails, "files": files}
