@@ -473,3 +473,28 @@ def test_metrics_doc_covers_every_metric():
             keys |= set(r) if isinstance(r, dict) else {m.__name__}
     missing = sorted(k for k in keys if f"`{k}`" not in doc)
     assert not missing, f"docs/METRICS.md is missing: {missing}"
+
+
+def test_auto_scoring_matches_study_scoring_on_v08_and_1_0_on_v1():
+    """The default 'auto' scoring is exactly '0.8' on the study's templates and '1.0' on v1.0 templates."""
+    rng = random.Random(2)
+    for name in NAMES:
+        want = "0.8" if name in LEVELS["mixed"] else "1.0"
+        _, db, spec = build(name, 0)
+        states = [st for _, st in mutations(name, db, spec, rng)][:12] + list(gaming_policies(db, solved(name, db, spec), rng).values())
+        for st in states:
+            tr = SimpleNamespace(state=st, info={}, messages=[])
+            for mode in ("strict", "partial", "honest", "honest_partial"):
+                data = PotemkinBenchData(id="c", name=name, prompt="", family=name, db=db, spec=spec)
+                auto = asyncio.run(PotemkinBenchTask(data, PotemkinBenchTaskConfig(reward_mode=mode)).intent(tr))
+                explicit = asyncio.run(PotemkinBenchTask(data, PotemkinBenchTaskConfig(reward_mode=mode, scoring=want)).intent(tr))
+                assert auto == explicit, (name, mode)
+
+
+def test_heldout_templates_only_in_test_splits():
+    held = sorted(n for n, t in TEMPLATES.items() if t.heldout)
+    assert held and all(n in LEVELS["v1"] for n in held)
+    for split, present in (("train", False), ("dev", False), ("test", True)):
+        cfg = PotemkinBenchConfig(split=split, difficulty="v1", num_tasks=len(LEVELS["v1"]), task=PotemkinBenchTaskConfig(files_tools=True))
+        fams = {t.data.family for t in PotemkinBenchTaskset(cfg).load()}
+        assert bool(set(held) & fams) == present, split

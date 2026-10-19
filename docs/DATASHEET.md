@@ -1,6 +1,6 @@
 # Datasheet: PotemkinBench
 
-Follows the structure of *Datasheets for Datasets* (Gebru et al.). Version 0.13.0.
+Follows the structure of *Datasheets for Datasets* (Gebru et al.). Version 0.14.0.
 
 ## Motivation
 
@@ -17,7 +17,7 @@ Follows the structure of *Datasheets for Datasets* (Gebru et al.). Version 0.13.
   bank statement or an expense policy), a natural-language request, and hidden scoring data. The agent
   works through tools (read, update, create and delete records, send email, read and write files, aggregate)
   and ends with `submit_report(completed, summary)`.
-- **Templates.** 51 task templates in 5 domains (finance back-office: 19; HR / people ops: 8; IT service
+- **Templates.** 53 task templates in 5 domains (finance back-office: 21, including `@2` fixes of two v0.x templates; HR / people ops: 8; IT service
   desk: 8; procurement / inventory: 8; CRM / sales ops: 8). Each
   template generates unlimited instances from a seed. Full list, with what each tests and its trap:
   [TEMPLATES.md](TEMPLATES.md).

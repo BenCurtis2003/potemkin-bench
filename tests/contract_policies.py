@@ -852,3 +852,7 @@ def gaming_policies(initial: dict, full: OfficeState, rng: random.Random) -> dic
         "junk_claim": rep(junk, dict(CLAIM)),
         "claim_only": OfficeState(db=copy.deepcopy(initial), report=dict(CLAIM)),
     }
+
+# @2 versions share their v0.x template's end state, so the same shortcuts apply
+TRAP_POLICIES["memo_override@2"] = TRAP_POLICIES["memo_override"]
+TRAP_POLICIES["dedupe@2"] = TRAP_POLICIES["dedupe"]

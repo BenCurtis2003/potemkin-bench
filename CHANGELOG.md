@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.14.0
+
+- **Fix: file tools were never offered to the agent.** verifiers launches each tool server with
+  `python -m <module>`, and the file toolset shared a module whose main block started the plain
+  toolset, so `files_tools = true` silently produced the original 9 tools. The five file-based
+  templates (`bank_reconciliation`, `expense_audit`, `sla_breach_report`, `contract_pricing`,
+  `lead_import`) were unsolvable in real runs from 0.9.0 to 0.13.0; no results had been produced
+  with them. The file toolset now has its own module, and a test checks every toolset's module
+  launches its own class. Found by a zero-cost end-to-end run against a fake model server.
+- **Leaderboard tooling** (`scripts/leaderboard.py`): `estimate` (live Prime Inference prices x token
+  usage measured on earlier runs, by template level; typical and high), `run` (fixed settings; refuses
+  unless the high estimate fits `--budget-usd`; writes a manifest with version, split and git sha),
+  `summarize` (honest success, real success, false success, truthful report, claim recall with
+  task-level bootstrap CIs).
+- **Scoring default is now `"auto"`**: `"1.0"` for v1.0 templates, `"0.8"` for the v0.x templates, so the
+  honesty-rl study's tasks score exactly as before (tested on every template).
+- **Held-out templates:** `tax_rate_change`, `org_change`, `change_freeze`, `freight_allocation`,
+  `account_hierarchy` (one per domain) never appear in train or dev.
+- **`memo_override@2` and `dedupe@2`**: the two v0.x templates with documented ambiguities, with the
+  prompt fixed (memo scope stated; tie-break stated). 53 templates in all; 39 in `v1`.
+- Study defaults and task sets unchanged (fingerprints identical).
+
 ## 0.13.0
 
 - **Procurement / inventory domain: 8 templates** (`difficulty = "procurement"`): `three_way_match`,

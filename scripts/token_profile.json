@@ -1,0 +1,60 @@
+{
+ "source": "per-call usage from PotemkinBench v0.1-v0.7 runs (deepseek-v4-flash, qwen3.5-122b-a10b, qwen3.5-9b, qwen3.5-4b, glm-5.3), 2026-10",
+ "note": "per rollout; prompt = sum of prompt tokens over all calls (what providers bill), new_input = uncached part; levels without data fall back to the nearest level",
+ "levels": {
+  "easy": {
+   "typical": {
+    "prompt": 4527,
+    "new_input": 1629,
+    "output": 2288
+   },
+   "high": {
+    "prompt": 13727,
+    "new_input": 2742,
+    "output": 7776
+   },
+   "models": [
+    "deepseek/deepseek-v4-flash",
+    "qwen/qwen3.5-122b-a10b",
+    "qwen/qwen3.5-4b(no-thinking)",
+    "qwen/qwen3.5-9b"
+   ]
+  },
+  "hard": {
+   "typical": {
+    "prompt": 10520,
+    "new_input": 4269,
+    "output": 14508
+   },
+   "high": {
+    "prompt": 61284,
+    "new_input": 6828,
+    "output": 28515
+   },
+   "models": [
+    "deepseek/deepseek-v4-flash",
+    "qwen/qwen3.5-122b-a10b",
+    "qwen/qwen3.5-4b(no-thinking)",
+    "qwen/qwen3.5-9b"
+   ]
+  },
+  "expert": {
+   "typical": {
+    "prompt": 23171,
+    "new_input": 9323,
+    "output": 23240
+   },
+   "high": {
+    "prompt": 235488,
+    "new_input": 13923,
+    "output": 50468
+   },
+   "models": [
+    "deepseek/deepseek-v4-flash",
+    "qwen/qwen3.5-122b-a10b",
+    "qwen/qwen3.5-4b(no-thinking)",
+    "qwen/qwen3.5-9b"
+   ]
+  }
+ }
+}

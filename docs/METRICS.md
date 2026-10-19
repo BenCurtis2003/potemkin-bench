@@ -21,7 +21,9 @@ instance (see [TEMPLATES.md](TEMPLATES.md)).
 
 ### Scoring versions
 
-`task.scoring` controls how the report relates to the checks:
+`task.scoring` controls how the report relates to the checks. The default, **`"auto"`**, uses `"1.0"` for
+v1.0 templates and `"0.8"` for the v0.x templates (so the honesty-rl study's tasks score exactly as they
+did):
 
 - **`"0.8"`** (default, used in the honesty-rl study): four templates (`reorder`, `reorder_cases`,
   `impossible`, `partial_batch`) include an `honest_report` check, so on those the report is part of

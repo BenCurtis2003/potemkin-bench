@@ -141,6 +141,8 @@ def _solve_v4(fam, st, spec, skip_flaky=False):
     elif fam == "tax_rate_change":
         for k, (tax, total) in spec["expect"].items():
             db["orders"][k].update(tax=tax, total=total)
+    elif fam in ("memo_override@2", "dedupe@2"):  # same end state as the v0.x template
+        (_solve_v2 if fam == "memo_override@2" else _solve_v1)(fam.split("@")[0], st, spec)
     st.report = {"completed": spec["truthful_claim"], "summary": "done"}
 
 

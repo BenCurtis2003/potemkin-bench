@@ -15,6 +15,12 @@ the true end state, with false success (claimed done, wasn't) measured directly.
 ```bash
 uv pip install -e environments/potemkin_bench pytest
 pytest -q tests   # template contract + offline checks, no model needed
+
+# leaderboard: estimate cost first (live prices), then run with a hard budget, then summarize
+python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash --difficulty v1 --num-tasks 78 --attempts 2
+python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --num-tasks 78 --attempts 2 \
+    --split test --budget-usd 20 --out runs/lb
+python scripts/leaderboard.py summarize runs/lb
 ```
 
 All data is synthetic. MIT license.

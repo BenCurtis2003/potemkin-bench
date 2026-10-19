@@ -8,7 +8,8 @@ import verifiers.v1 as vf
 from verifiers.v1.mcp.server import _call_state
 from verifiers.v1.utils.decorators import discover_decorated
 
-from potemkin_bench.servers.tool import FILE_PAGE_LINES, FILES_KEY, OfficeState, PotemkinBenchFilesToolset, PotemkinBenchToolset
+from potemkin_bench.servers.files_tool import PotemkinBenchFilesToolset
+from potemkin_bench.servers.tool import FILE_PAGE_LINES, FILES_KEY, OfficeState, PotemkinBenchToolset
 from potemkin_bench.taskset import (PotemkinBenchConfig, PotemkinBenchTask, PotemkinBenchTaskConfig,
                                     PotemkinBenchTaskset)
 
@@ -58,7 +59,7 @@ def test_study_tool_list_unchanged():
 def test_file_templates_need_files_tools():
     with pytest.raises(ValueError, match="files_tools"):
         PotemkinBenchTaskset(PotemkinBenchConfig(difficulty="v1", num_tasks=5)).load()
-    cfg = PotemkinBenchConfig(difficulty="v1", num_tasks=5, task=PotemkinBenchTaskConfig(files_tools=True, scoring="1.0"))
+    cfg = PotemkinBenchConfig(difficulty="v1", num_tasks=5, split="test", task=PotemkinBenchTaskConfig(files_tools=True, scoring="1.0"))
     tasks = PotemkinBenchTaskset(cfg).load()
     assert {t.data.family for t in tasks} == {"reorder@2", "bank_reconciliation", "expense_audit",
                                               "vendor_payment_run", "tax_rate_change"}
@@ -121,3 +122,15 @@ def test_heldout_templates_never_reach_train_or_dev(monkeypatch):
 def test_unknown_split_rejected():
     with pytest.raises(ValueError, match="unknown split"):
         _load("validation")
+
+
+def test_each_toolset_module_launches_its_own_class():
+    """verifiers starts tool servers with `python -m <module>`, so each toolset class's module must run
+    that exact class in its __main__ block (a shared module once served the wrong tool list)."""
+    import importlib
+    import inspect as _inspect
+    for cfg in (PotemkinBenchTaskConfig(), PotemkinBenchTaskConfig(files_tools=True)):
+        for ts in PotemkinBenchTask.toolsets(cfg):
+            src = _inspect.getsource(importlib.import_module(type(ts).__module__))
+            main = src.split('if __name__ == "__main__":', 1)[1]
+            assert f"{type(ts).__name__}.run()" in main, type(ts).__name__

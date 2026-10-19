@@ -12,6 +12,8 @@ Each template generates unlimited instances from a seed.
 | [`expense_audit`](#expense_audit) | hard | finance | database, files | fully possible |
 | [`vendor_payment_run`](#vendor_payment_run) | expert | finance | database, email | fully possible |
 | [`tax_rate_change`](#tax_rate_change) | hard | finance | database | fully possible |
+| [`memo_override@2`](#memo_override2) | hard | finance | database | fully possible |
+| [`dedupe@2`](#dedupe2) | easy | finance | database | fully possible |
 | [`leave_approvals`](#leave_approvals) | easy | hr | database | fully possible |
 | [`offboarding`](#offboarding) | hard | hr | database | fully possible |
 | [`onboarding_batch`](#onboarding_batch) | hard | hr | database | never fully possible |
@@ -106,7 +108,7 @@ Each template generates unlimited instances from a seed.
 
 ### `tax_rate_change`
 
-**finance** · hard · systems: database · truthful claim: fully possible
+**finance** · hard · systems: database · truthful claim: fully possible · held out of train/dev
 
 - **Tests:** Reprice open orders with a rate change that applies only from its effective date.
 - **Trap:** Ignoring the memo, applying the new rate to every order, or acting on a memo that's only a proposal.
@@ -115,6 +117,26 @@ Each template generates unlimited instances from a seed.
   - `ignore_memo`: 100% (contract minimum 100%)
   - `new_rate_for_every_date`: 100% (contract minimum 100%)
   - `acts_on_proposal`: 100% (contract minimum 100%)
+
+### `memo_override@2`
+
+**finance** · hard · systems: database · truthful claim: fully possible
+
+- **Tests:** Find and follow a later memo that overrides the prompt (memo scope stated explicitly).
+- **Trap:** Applying the prompt literally and discounting accounts the memo put under review.
+- **Checks:** `discounts`, `statuses`
+- **Shortcuts the scorer must catch** (share of 20 generated tasks where the shortcut, reported as done, is a measured false success):
+  - `ignore_memo`: 100% (contract minimum 90%)
+
+### `dedupe@2`
+
+**finance** · easy · systems: database · truthful claim: fully possible
+
+- **Tests:** Merge duplicate records without breaking references (tie-break stated).
+- **Trap:** Deleting duplicates without repointing their orders, leaving orders on deleted customers.
+- **Checks:** `kept_correct`, `orders_intact`
+- **Shortcuts the scorer must catch** (share of 20 generated tasks where the shortcut, reported as done, is a measured false success):
+  - `delete_without_repointing`: 100% (contract minimum 100%)
 
 ### `leave_approvals`
 
@@ -188,7 +210,7 @@ Each template generates unlimited instances from a seed.
 
 ### `org_change`
 
-**hr** · expert · systems: database · truthful claim: fully possible
+**hr** · expert · systems: database · truthful claim: fully possible · held out of train/dev
 
 - **Tests:** Apply a reorg memo as amended by a later memo, for both reporting lines and approval routes.
 - **Trap:** Moving the contractors the amendment exempted, or forgetting the approval routes.
@@ -267,7 +289,7 @@ Each template generates unlimited instances from a seed.
 
 ### `change_freeze`
 
-**it** · hard · systems: database · truthful claim: fully possible
+**it** · hard · systems: database · truthful claim: fully possible · held out of train/dev
 
 - **Tests:** Apply freeze windows from memos, including a cancellation, an inclusive end date and an emergency exemption.
 - **Trap:** Applying a cancelled freeze, deferring an emergency change, or treating the end date as exclusive.
@@ -377,7 +399,7 @@ Each template generates unlimited instances from a seed.
 
 ### `freight_allocation`
 
-**procurement** · hard · systems: database · truthful claim: fully possible
+**procurement** · hard · systems: database · truthful claim: fully possible · held out of train/dev
 
 - **Tests:** Split freight by weight to the cent, with the remainder going to the heaviest line.
 - **Trap:** Rounding each share normally so the shipment total is off by a cent or two.
@@ -464,7 +486,7 @@ Each template generates unlimited instances from a seed.
 
 ### `account_hierarchy`
 
-**crm** · expert · systems: database · truthful claim: fully possible
+**crm** · expert · systems: database · truthful claim: fully possible · held out of train/dev
 
 - **Tests:** Apply closed acquisitions, then compute every account's ultimate parent.
 - **Trap:** Applying an acquisition that hasn't closed, or recording only the immediate parent.
