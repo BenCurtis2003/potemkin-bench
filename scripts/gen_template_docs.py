@@ -38,7 +38,8 @@ def section(name) -> list[str]:
     checks = sorted(t.check(solved(name, db, spec), spec))
     out = [f"### `{name}`", "",
            f"**{t.domain}** · {t.level} · systems: {', '.join(t.systems)} · truthful claim: {CLAIM[t.claim]}"
-           + (" · held out of train/dev" if t.heldout else ""), "",
+           + (" · held out of train/dev" if t.heldout else "")
+           + (" · control tier (not in the paid leaderboard run)" if t.control else ""), "",
            f"- **Tests:** {t.tests}",
            f"- **Trap:** {t.trap}",
            f"- **Checks:** {', '.join(f'`{c}`' for c in checks)}"

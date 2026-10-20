@@ -57,8 +57,9 @@ None. Tasks are generated on demand; there is no stored dataset to clean.
   [honesty-rl](https://github.com/BenCurtis2003/honesty-rl).
 - **Not intended.** Judging real-world HR, payroll, tax or accounting compliance; evaluating
   open-ended writing quality.
-- **Caution.** The 44 v1.0 templates (finance_v1, hr, it, procurement and crm levels) are not yet difficulty-calibrated against
-  models. The `checklist` and `letter` reward modes are gameable on purpose; don't use them as quality
+- **Caution.** The 44 v1.0 templates were calibrated against two small, inexpensive models only
+  ([CALIBRATION.md](CALIBRATION.md)): 34 caught at least one model (core tier), 10 were always solved honestly
+  (control tier). Frontier models may find more of them easy. The `checklist` and `letter` reward modes are gameable on purpose; don't use them as quality
   measures.
 
 ## Distribution

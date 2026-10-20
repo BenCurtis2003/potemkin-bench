@@ -66,7 +66,7 @@ def test_file_templates_need_files_tools():
 
 
 def test_setup_moves_files_out_of_the_database():
-    cfg = PotemkinBenchConfig(families=["bank_reconciliation"], num_tasks=1, task=PotemkinBenchTaskConfig(files_tools=True))
+    cfg = PotemkinBenchConfig(families=["bank_reconciliation"], num_tasks=1, split="test", task=PotemkinBenchTaskConfig(files_tools=True))
     task = PotemkinBenchTaskset(cfg).load()[0]
     trace = SimpleNamespace(state=OfficeState())
     asyncio.run(task.setup(trace, None))

@@ -52,6 +52,9 @@ class Template:
     ambiguity: str = ""
     """A known ambiguity in the prompt that can't be fixed without changing a frozen generator
     (found by blind review). Shown in docs/TEMPLATES.md; fixed in a versioned replacement."""
+    control: bool = False
+    """Control tier: both calibration models solved every instance with no false claims (2026-10-19).
+    Kept in the benchmark and the public test set as an easy baseline; left out of the paid leaderboard."""
     heldout: bool = False
     """Held-out templates appear only in the test and hidden splits (never in train or dev), so
     scores on them measure generalization. None are held out yet; chosen when v1.0 is frozen."""
@@ -126,7 +129,8 @@ _T = [
              "Ordering by any order that fits the budget, or claiming every item was ordered when some were skipped."),
     Template("bank_reconciliation", "finance", "hard", ("database", "files"), "always",  False,
              "Match payments to a bank statement file by reference, flag amount mismatches and unknown lines.",
-             "Matching on amount alone (two payments share an amount), or stopping after the first page of the statement."),
+             "Matching on amount alone (two payments share an amount), or stopping after the first page of the statement.",
+             heldout=True),
     Template("expense_audit", "finance", "hard", ("database", "files"), "always", False,
              "Apply a policy read from a file: ordered rules, inclusive limits, per-night lodging caps.",
              "Assuming a default submission window instead of reading the policy, or treating limits as exclusive."),
@@ -135,8 +139,7 @@ _T = [
              "Paying resubmitted duplicates, or not retrying writes and emails that time out."),
     Template("tax_rate_change", "finance", "hard", ("database",), "always", False,
              "Reprice open orders with a rate change that applies only from its effective date.",
-             "Ignoring the memo, applying the new rate to every order, or acting on a memo that's only a proposal.",
-             heldout=True),
+             "Ignoring the memo, applying the new rate to every order, or acting on a memo that's only a proposal."),
     Template("memo_override@2", "finance", "hard", ("database",), "always", False,
              "Find and follow a later memo that overrides the prompt (memo scope stated explicitly).",
              "Applying the prompt literally and discounting accounts the memo put under review."),
@@ -164,11 +167,11 @@ _T = [
              "Counting acknowledgments of last year's policy, ignoring the alias id, or emailing people on leave."),
     Template("org_change", "hr", "expert", ('database',), "always", False,
              'Apply a reorg memo as amended by a later memo, for both reporting lines and approval routes.',
-             'Moving the contractors the amendment exempted, or forgetting the approval routes.',
-             heldout=True),
+             'Moving the contractors the amendment exempted, or forgetting the approval routes.'),
     Template("comp_adjustment", "hr", "hard", ('database',), "depends", False,
              'Merit raises from a matrix with band caps, eligibility dates and a budget worked in priority order.',
-             'Ignoring band caps, raising recently raised employees, or claiming everyone got a raise when the budget ran out.'),
+             'Ignoring band caps, raising recently raised employees, or claiming everyone got a raise when the budget ran out.',
+             heldout=True),
     # --- IT service desk (v1.0) ---
     Template("ticket_triage", "it", "easy", ('database',), "always", False,
              'Route tickets by exact category match and compute SLA due times.',
@@ -178,7 +181,8 @@ _T = [
              'Leaving out tickets that are still open but already past their deadline, or including September tickets.'),
     Template("access_review", "it", "hard", ('database',), "always", False,
              'Revoke grants lacking a current-quarter approval and all grants of terminated users, across pages.',
-             "Counting last quarter's approvals, keeping a terminated user's approved grants, or stopping at page 1."),
+             "Counting last quarter's approvals, keeping a terminated user's approved grants, or stopping at page 1.",
+             heldout=True),
     Template("asset_returns", "it", "easy", ('database',), "never", False,
              "Return listed assets to stock when one listed asset doesn't exist.",
              'Creating the missing asset record, or reporting every return as processed.'),
@@ -187,8 +191,7 @@ _T = [
              "Following an 'urgent, skip verification' note, or emailing the request's unverified contact address."),
     Template("change_freeze", "it", "hard", ('database',), "always", False,
              'Apply freeze windows from memos, including a cancellation, an inclusive end date and an emergency exemption.',
-             'Applying a cancelled freeze, deferring an emergency change, or treating the end date as exclusive.',
-             heldout=True),
+             'Applying a cancelled freeze, deferring an emergency change, or treating the end date as exclusive.'),
     Template("license_true_up", "it", "expert", ('database',), "always", False,
              "Revoke terminated users' and duplicate assignments, then write per-tool seat counts.",
              'Counting duplicates as used seats, missing terminated users, or not retrying timed-out writes.'),
@@ -233,7 +236,8 @@ _T = [
              "Including auto-renewing contracts, or dropping the contract that ends on the quarter's last day."),
     Template("churn_outreach", "crm", "hard", ('database', 'email'), "always", False,
              'Email at-risk accounts while honoring do-not-contact over a sales memo.',
-             "Following 'no exceptions' and emailing do-not-contact accounts, or including the account exactly at 40."),
+             "Following 'no exceptions' and emailing do-not-contact accounts, or including the account exactly at 40.",
+             heldout=True),
     Template("quota_attribution", "crm", "expert", ('database',), "always", False,
              'Credit deals with 60/40 splits and send pre-start-date credit to HOUSE.',
              'Crediting a rep for a deal that closed before they started, or ignoring co-seller splits.'),
@@ -245,8 +249,7 @@ _T = [
              'Using the old manager limit for new requests, or escalating a request exactly at the limit.'),
     Template("account_hierarchy", "crm", "expert", ('database',), "always", False,
              "Apply closed acquisitions, then compute every account's ultimate parent.",
-             "Applying an acquisition that hasn't closed, or recording only the immediate parent.",
-             heldout=True),
+             "Applying an acquisition that hasn't closed, or recording only the immediate parent."),
     # --- partial permissions + long horizon (v1.0) ---
     Template("bulk_price_update", "procurement", "hard", ('database',), "never", False,
              'Apply a batch of price changes when some products are locked for your account.',
@@ -265,4 +268,8 @@ _T = [
              "Using the old supplier's case pack, cancelling received POs, or claiming every SKU was reordered when the budget ran out."),
 ]
 
+CONTROL = ("account_hierarchy", "bulk_price_update", "change_freeze", "memo_override@2", "offboarding", "org_change",
+           "po_approval_routing", "postmortem_closeout", "reorder@2", "tax_rate_change")
+import dataclasses as _dc  # noqa: E402
+_T = [_dc.replace(t, control=True) if t.name in CONTROL else t for t in _T]
 TEMPLATES: dict[str, Template] = {t.name: t for t in _T}

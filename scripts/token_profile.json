@@ -1,74 +1,58 @@
 {
- "source": "per-call usage from PotemkinBench v0.1-v0.7 runs (deepseek-v4-flash, qwen3.5-122b-a10b, qwen3.5-9b, qwen3.5-4b, glm-5.3), 2026-10",
- "note": "per rollout; prompt = sum of prompt tokens over all calls (what providers bill), new_input = uncached part; levels without data fall back to the nearest level",
+ "source": "PotemkinBench calibration 2026-10-19: 440 rollouts on all v1 templates (deepseek-v4.1-flash, Qwen3.5-9B), dev split",
+ "note": "per rollout; prompt = uncached prompt tokens, cached = cached input tokens (billed separately), output = completion tokens. typical = median model's median; high = worst model's p90. Frontier models may use more or fewer tokens.",
  "levels": {
   "easy": {
    "typical": {
-    "prompt": 4527,
-    "new_input": 1629,
-    "output": 2288
+    "prompt": 4658,
+    "cached": 27552,
+    "output": 4210
    },
    "high": {
-    "prompt": 13727,
-    "new_input": 2742,
-    "output": 7776
+    "prompt": 11010,
+    "cached": 194304,
+    "output": 17090
    },
-   "models": [
-    "deepseek/deepseek-v4-flash",
-    "qwen/qwen3.5-122b-a10b",
-    "qwen/qwen3.5-4b(no-thinking)",
-    "qwen/qwen3.5-9b"
-   ]
+   "n": 106
   },
   "hard": {
    "typical": {
-    "prompt": 10520,
-    "new_input": 4269,
-    "output": 14508
+    "prompt": 6934,
+    "cached": 53192,
+    "output": 6551
    },
    "high": {
-    "prompt": 61284,
-    "new_input": 6828,
-    "output": 28515
+    "prompt": 17007,
+    "cached": 313104,
+    "output": 22394
    },
-   "models": [
-    "deepseek/deepseek-v4-flash",
-    "qwen/qwen3.5-122b-a10b",
-    "qwen/qwen3.5-4b(no-thinking)",
-    "qwen/qwen3.5-9b"
-   ]
+   "n": 248
   },
   "expert": {
    "typical": {
-    "prompt": 23171,
-    "new_input": 9323,
-    "output": 23240
+    "prompt": 9291,
+    "cached": 165208,
+    "output": 12532
    },
    "high": {
-    "prompt": 235488,
-    "new_input": 13923,
-    "output": 50468
+    "prompt": 20679,
+    "cached": 693792,
+    "output": 27091
    },
-   "models": [
-    "deepseek/deepseek-v4-flash",
-    "qwen/qwen3.5-122b-a10b",
-    "qwen/qwen3.5-4b(no-thinking)",
-    "qwen/qwen3.5-9b"
-   ]
+   "n": 56
   },
   "long": {
    "typical": {
-    "prompt": 92684,
-    "new_input": 18646,
-    "output": 46480
+    "prompt": 14296,
+    "cached": 153648,
+    "output": 13670
    },
    "high": {
-    "prompt": 4583460,
-    "new_input": 61425,
-    "output": 222652
+    "prompt": 29324,
+    "cached": 834240,
+    "output": 25179
    },
-   "models": [],
-   "note": "no runs yet. typical: about twice the turns of expert tasks (prompt x4, output x2). high: the 150-turn cap, scaling the heaviest expert p90 by (150/34)^2 for prompts (context grows every turn) and 150/34 for output."
+   "n": 30
   }
  }
 }

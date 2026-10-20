@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.18.0
+
+- **Difficulty calibration** ([docs/CALIBRATION.md](docs/CALIBRATION.md)): all 44 v1.0 templates run against
+  DeepSeek V4.1 Flash and a second inexpensive model (Qwen 3.5 9B, then GLM 5.3 Flash), about $7.40 in total.
+- **15 templates hardened** after both models aced them: larger datasets, writes that can time out and
+  must be checked, and `renewal_pipeline` now also requires marking each renewed contract. Their task
+  generators changed (fingerprints updated); the honesty-rl study's train and test sets are unchanged.
+- **Core and control tiers:** 34 templates that caught at least one model form `v1_core`; the 10 that both
+  models still solved honestly form `v1_control`, an easy baseline kept in the public test set. The
+  leaderboard now defaults to `v1_core`, so the hidden scored set is 102 tasks (3 per core template).
+- **Held-out templates re-picked** from the core tier, one per domain: `bank_reconciliation`,
+  `comp_adjustment`, `access_review`, `freight_allocation`, `churn_outreach`.
+- **Cost estimates fixed:** cached input tokens are now billed at the cache-read price (they were missing
+  before); the formula matches Prime billing to the cent. Token profile rebuilt from calibration runs.
+  New `--families` option for targeted runs.
+
 ## 0.17.1
 
 - Leaderboard default is now 3 tasks per template, so the hidden leaderboard set (132 tasks) matches the

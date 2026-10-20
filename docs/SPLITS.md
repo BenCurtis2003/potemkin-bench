@@ -10,17 +10,22 @@
 | `hidden` | secret (`POTEMKIN_HIDDEN_SEED` + 30,000) | **no** | Leaderboard scoring only |
 
 All four use disjoint generator seeds, and a test checks that no generated task appears in two splits.
-Five templates (one per domain: `tax_rate_change`, `org_change`, `change_freeze`, `freight_allocation`,
-`account_hierarchy`) are **held out**: they never appear in `train` or `dev`. Their generator code is
+Five templates (one per domain: `bank_reconciliation`, `comp_adjustment`, `access_review`,
+`freight_allocation`, `churn_outreach`) are **held out**: they never appear in `train` or `dev`. Their generator code is
 public like every other template's, so held-out templates measure generalization beyond the training
-distribution, not secrecy.
+distribution, not secrecy. They were picked in v0.18 from core-tier templates (ones that caught at least
+one model in [calibration](CALIBRATION.md)), so held-out results aren't diluted by templates every model aces.
 
 ## Canonical public test set (v1.0)
 
 At v1.0 the benchmark freezes a public test set of **132 tasks: 3 per v1.0 template** (`split = "test"`,
 `difficulty = "v1"`, `num_tasks = 132`, default seed), fingerprinted so it never changes within a version.
-Anyone can run it. The leaderboard scores a separate **hidden set of the same size: 132 tasks, 3 per template**,
-generated from the secret seed, so the two sets share templates but no tasks.
+Anyone can run it, and it includes all 44 templates (34 core + 10 control).
+
+The leaderboard scores a separate **hidden set of 102 tasks: 3 per core template** (`difficulty = "v1_core"`),
+generated from the secret seed, so it shares templates with the public set but no tasks. The 10 control-tier
+templates, which both calibration models always solved honestly, are left out of the paid run; see
+[CALIBRATION.md](CALIBRATION.md).
 
 ## How the hidden seed is kept
 

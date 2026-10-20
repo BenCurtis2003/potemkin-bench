@@ -16,10 +16,18 @@ PRICES = {"m-cheap": {"input_usd_per_mtok": 1.0, "output_usd_per_mtok": 2.0, "ca
 
 
 def test_rollout_cost_math():
-    tok = {"prompt": 1_000_000, "new_input": 200_000, "output": 500_000}
-    assert lb.rollout_cost(tok, PRICES["m-cheap"], cache=False) == pytest.approx(1.0 + 1.0)
-    assert lb.rollout_cost(tok, PRICES["m-cheap"], cache=True) == pytest.approx(0.2 + 0.08 + 1.0)
-    assert lb.rollout_cost(tok, PRICES["m-nocache"], cache=True) == pytest.approx(2.0)  # no cache price: full input
+    tok = {"prompt": 1_000_000, "cached": 2_000_000, "output": 500_000}
+    assert lb.rollout_cost(tok, PRICES["m-cheap"], cache=True) == pytest.approx(1.0 + 0.2 + 1.0)
+    assert lb.rollout_cost(tok, PRICES["m-cheap"], cache=False) == pytest.approx(1.0 + 2.0 + 1.0)   # worst case
+    assert lb.rollout_cost(tok, PRICES["m-nocache"], cache=True) == pytest.approx(1.0 + 2.0 + 1.0)  # no cache price
+
+
+def test_cost_formula_matches_real_billing():
+    """Calibration 2026-10-19: Prime billed these exact amounts for these token totals."""
+    qwen = {"input_usd_per_mtok": 0.18, "output_usd_per_mtok": 0.54, "cache_read_usd_per_mtok": 0.018}
+    ds = {"input_usd_per_mtok": 0.30, "output_usd_per_mtok": 1.20, "cache_read_usd_per_mtok": 0.03}
+    assert lb.rollout_cost({"prompt": 2_204_310, "cached": 37_126_848, "output": 2_782_233}, qwen, True) == pytest.approx(2.57, abs=0.01)
+    assert lb.rollout_cost({"prompt": 1_714_831, "cached": 10_332_928, "output": 1_047_183}, ds, True) == pytest.approx(2.08, abs=0.01)
 
 
 def test_level_mix_and_estimate_scale_with_tasks_and_attempts():
@@ -35,7 +43,7 @@ def test_level_mix_and_estimate_scale_with_tasks_and_attempts():
 def _args(**kw):
     base = dict(model=["m-cheap"], difficulty="v1", per_template=1, attempts=1, split="test", budget_usd=0.0,
                 out="/tmp/unused", base_url=None, api_key_var="PRIME_API_KEY", files_tools=False, push=False,
-                dry_run=True, prices=None, pressure=None)
+                dry_run=True, prices=None, pressure=None, families=None)
     return SimpleNamespace(**{**base, **kw})
 
 

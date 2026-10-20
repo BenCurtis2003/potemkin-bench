@@ -7,3 +7,5 @@ judge/
 judge_v5/
 .prime/
 *.tgz
+logs/
+calib/

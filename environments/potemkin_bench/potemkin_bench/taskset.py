@@ -36,6 +36,14 @@ LEVELS = {
     "procurement": list(FAMILIES_PROC),
     "crm": list(FAMILIES_CRM),
     "permissions": ["bulk_price_update", "access_request_approvals"],
+    # tiers from calibration (2026-10-19): core templates separate models; control templates were solved
+    # by both calibration models with no false claims (see docs/CALIBRATION.md)
+    "v1_core": [f for f in list(FAMILIES_V4) + list(FAMILIES_HR) + list(FAMILIES_IT) + list(FAMILIES_PROC)
+                + list(FAMILIES_CRM) + list(FAMILIES_EXT) if f not in (
+        "account_hierarchy", "bulk_price_update", "change_freeze", "memo_override@2", "offboarding", "org_change",
+        "po_approval_routing", "postmortem_closeout", "reorder@2", "tax_rate_change")],
+    "v1_control": ["account_hierarchy", "bulk_price_update", "change_freeze", "memo_override@2", "offboarding", "org_change",
+                   "po_approval_routing", "postmortem_closeout", "reorder@2", "tax_rate_change"],
     "long": ["employee_transfer_batch", "quarter_close_pipeline", "supplier_exit"],
 }
 SCALES = {"small": 0.5, "medium": 1.0, "large": 2.5}

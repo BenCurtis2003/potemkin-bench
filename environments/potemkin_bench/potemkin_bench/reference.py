@@ -268,6 +268,8 @@ def _solve_crm(fam, st, spec):
             db["accounts"][k]["owner_id"] = r
     elif fam == "renewal_pipeline":
         db["opportunities"] = {k: dict(v) for k, v in spec["opps"].items()}
+        for k in spec.get("flagged", []):
+            db["contracts"][k]["renewal_opportunity"] = f"OPP-{k}"
     elif fam == "churn_outreach":
         for e, acc in spec["targets"].items():
             st.outbox.append({"to": e, "subject": f"Checking in on {acc}", "body": "How are things going?"})

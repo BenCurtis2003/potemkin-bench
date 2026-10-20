@@ -2,10 +2,10 @@
 
     # 1. what would it cost? (live prices from Prime Inference, token usage from past runs)
     python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash -m Qwen/Qwen3.5-9B \
-        --difficulty v1 --per-template 3 --attempts 2
+        --difficulty v1_core --per-template 3 --attempts 2
 
     # 2. run it (refuses unless the HIGH estimate fits under --budget-usd)
-    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1 --per-template 3 \
+    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1_core --per-template 3 \
         --attempts 2 --split test --budget-usd 25 --out leaderboard_runs/2026-10
 
     # 3. summarize every run in a folder into a table with task-level bootstrap CIs
@@ -53,11 +53,11 @@ def version() -> str:
 
 # --- cost estimate ----------------------------------------------------------------------------
 
-def run_groups(difficulty: str, per_template: int) -> list[dict]:
+def run_groups(difficulty: str, per_template: int, families: list[str] | None = None) -> list[dict]:
     """Split the level's templates into the standard and long-horizon groups (each run with its own cap)."""
     from potemkin_bench.taskset import LEVELS
     from potemkin_bench.templates import TEMPLATES
-    fams = LEVELS[difficulty]
+    fams = families or LEVELS[difficulty]
     out = []
     for name, pick in (("standard", lambda f: TEMPLATES[f].level != "long"), ("long", lambda f: TEMPLATES[f].level == "long")):
         group = [f for f in fams if pick(f)]
@@ -67,12 +67,12 @@ def run_groups(difficulty: str, per_template: int) -> list[dict]:
     return out
 
 
-def level_mix(difficulty: str, per_template: int) -> dict[str, int]:
+def level_mix(difficulty: str, per_template: int, families: list[str] | None = None) -> dict[str, int]:
     """How many tasks fall in each template level (every template gets per_template tasks)."""
     from potemkin_bench.taskset import LEVELS
     from potemkin_bench.templates import TEMPLATES
     mix: dict[str, int] = {}
-    for f in LEVELS[difficulty]:
+    for f in families or LEVELS[difficulty]:
         mix[TEMPLATES[f].level] = mix.get(TEMPLATES[f].level, 0) + per_template
     return mix
 
@@ -90,13 +90,14 @@ def live_prices(models: list[str]) -> dict[str, dict]:
 
 
 def rollout_cost(tokens: dict, price: dict, cache: bool) -> float:
+    """Prime bills uncached prompt tokens at the input price, cached input tokens (reported separately, on
+    top of prompt tokens) at the cache-read price, and output tokens at the output price. Verified to the
+    cent against wallet billing rows (calibration, 2026-10-19). With cache=False, or no cache price, cached
+    tokens are billed at the full input price (worst case)."""
     pin, pout = price.get("input_usd_per_mtok") or 0.0, price.get("output_usd_per_mtok") or 0.0
     pcache = price.get("cache_read_usd_per_mtok")
-    if cache and pcache is not None:
-        cost_in = tokens["new_input"] * pin + max(0, tokens["prompt"] - tokens["new_input"]) * pcache
-    else:
-        cost_in = tokens["prompt"] * pin
-    return (cost_in + tokens["output"] * pout) / 1e6
+    cached_rate = pcache if (cache and pcache is not None) else pin
+    return (tokens["prompt"] * pin + tokens["cached"] * cached_rate + tokens["output"] * pout) / 1e6
 
 
 def estimate(models: list[str], prices: dict[str, dict], mix: dict[str, int], attempts: int) -> dict:
@@ -148,11 +149,12 @@ def eval_command(model: str, a, out_dir: pathlib.Path, group: dict) -> list[str]
 
 def run(a) -> None:
     variants = len(a.pressure or ["neutral"])  # each base task runs once per prompt variant
-    mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template).items()}
+    fams = a.families.split(",") if a.families else None
+    mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template, fams).items()}
     prices = json.loads(pathlib.Path(a.prices).read_text()) if a.prices else live_prices(a.model)
     est = estimate(a.model, prices, mix, a.attempts)
     print_estimate(est, mix, a.attempts)
-    groups = run_groups(a.difficulty, a.per_template)
+    groups = run_groups(a.difficulty, a.per_template, fams)
     if est["high_usd"] > a.budget_usd:
         raise SystemExit(f"REFUSING: high estimate ${est['high_usd']} exceeds --budget-usd {a.budget_usd}")
     if a.split == "hidden" and not os.environ.get("POTEMKIN_HIDDEN_SEED"):
@@ -261,10 +263,8 @@ def claim_recall(rows: list[dict]) -> float | None:
 
 
 def _cost(r: dict, price: dict) -> float:
-    pin, pout = price.get("input_usd_per_mtok") or 0.0, price.get("output_usd_per_mtok") or 0.0
-    pcache = price.get("cache_read_usd_per_mtok")
-    cached = min(r["cached_tokens"], r["prompt_tokens"]) if pcache is not None else 0
-    return ((r["prompt_tokens"] - cached) * pin + cached * (pcache or 0) + r["output_tokens"] * pout) / 1e6
+    return rollout_cost({"prompt": r["prompt_tokens"], "cached": r["cached_tokens"], "output": r["output_tokens"]},
+                        price, cache=True)
 
 
 def _breakdown(runs: dict[str, list[dict]], key: str, title: str) -> list[str]:
@@ -387,8 +387,9 @@ def main(argv=None) -> None:
     for name in ("estimate", "run"):
         p = sub.add_parser(name)
         p.add_argument("-m", "--model", action="append", required=True)
-        p.add_argument("--difficulty", default="v1")
-        p.add_argument("--per-template", type=int, default=3, help="tasks generated per template (3 x 44 v1 templates = 132)")
+        p.add_argument("--difficulty", default="v1_core")
+        p.add_argument("--families", help="comma-separated templates (overrides --difficulty), e.g. for targeted re-checks")
+        p.add_argument("--per-template", type=int, default=3, help="tasks generated per template (3 x 34 core templates = 102)")
         p.add_argument("--pressure", action="append", help="prompt variants, e.g. neutral, pushback (default: neutral)")
         p.add_argument("--attempts", type=int, default=2)
         p.add_argument("--prices", help="JSON file {model: {input_usd_per_mtok, output_usd_per_mtok, cache_read_usd_per_mtok}} instead of live prices")
@@ -411,7 +412,7 @@ def main(argv=None) -> None:
     a = ap.parse_args(argv)
     if a.cmd == "estimate":
         variants = len(a.pressure or ["neutral"])
-        mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template).items()}
+        mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template, a.families.split(",") if a.families else None).items()}
         prices = json.loads(pathlib.Path(a.prices).read_text()) if a.prices else live_prices(a.model)
         print_estimate(estimate(a.model, prices, mix, a.attempts), mix, a.attempts)
     elif a.cmd == "run":
