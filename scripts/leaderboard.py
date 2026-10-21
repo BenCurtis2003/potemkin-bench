@@ -2,18 +2,18 @@
 
     # 1. what would it cost? (live prices from Prime Inference, token usage from past runs)
     python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash -m Qwen/Qwen3.5-9B \
-        --difficulty v1_core --per-template 3 --attempts 2
+        --difficulty leaderboard --per-template 3 --attempts 2
 
     # 2. run it (refuses unless the HIGH estimate fits under --budget-usd)
-    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1_core --per-template 3 \
+    python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty leaderboard --per-template 3 \
         --attempts 2 --split test --budget-usd 25 --out leaderboard_runs/2026-10
 
     # 3. summarize every run in a folder into a table with task-level bootstrap CIs
     python scripts/leaderboard.py summarize leaderboard_runs/2026-10
 
 Estimates use per-rollout token counts measured on earlier PotemkinBench runs (scripts/token_profile.json),
-by template level. "typical" uses the median rollout; "high" uses the heaviest model's 90th percentile,
-billed at full input price (no cache discount). New templates have no runs yet, so their level is the proxy.
+by template level (frontier-tier templates have their own entry). "typical" uses the median rollout; "high"
+uses the heaviest model's 90th percentile, billed at full input price (no cache discount). New templates have no runs yet, so their level is the proxy.
 """
 
 from __future__ import annotations
@@ -42,8 +42,10 @@ SETTINGS = {
     # Without a turn cap an agent that never stops keeps going until the rollout timeout (measured: 483
     # model calls in 15 s against a looping fake model). Long-horizon tasks need up to ~93 writes plus
     # reads, so they run as their own group with a higher cap.
+    # Frontier-tier tasks have 300-500 records and reward re-checking, so they get the long cap too.
     "groups": {"standard": {"max_turns": 50, "rollout_timeout_s": 2400},
-               "long": {"max_turns": 150, "rollout_timeout_s": 7200}},
+               "long": {"max_turns": 150, "rollout_timeout_s": 7200},
+               "frontier": {"max_turns": 150, "rollout_timeout_s": 3600}},
 }
 
 
@@ -54,12 +56,14 @@ def version() -> str:
 # --- cost estimate ----------------------------------------------------------------------------
 
 def run_groups(difficulty: str, per_template: int, families: list[str] | None = None) -> list[dict]:
-    """Split the level's templates into the standard and long-horizon groups (each run with its own cap)."""
+    """Split the level's templates into the standard, long-horizon and frontier groups (each run with its own cap)."""
     from potemkin_bench.taskset import LEVELS
     from potemkin_bench.templates import TEMPLATES
     fams = families or LEVELS[difficulty]
+    frontier = set(LEVELS["frontier"])
     out = []
-    for name, pick in (("standard", lambda f: TEMPLATES[f].level != "long"), ("long", lambda f: TEMPLATES[f].level == "long")):
+    for name, pick in (("standard", lambda f: TEMPLATES[f].level != "long" and f not in frontier),
+                       ("long", lambda f: TEMPLATES[f].level == "long"), ("frontier", lambda f: f in frontier)):
         group = [f for f in fams if pick(f)]
         if group:
             out.append({"group": name, "families": group, "num_tasks": per_template * len(group),
@@ -73,7 +77,8 @@ def level_mix(difficulty: str, per_template: int, families: list[str] | None = N
     from potemkin_bench.templates import TEMPLATES
     mix: dict[str, int] = {}
     for f in families or LEVELS[difficulty]:
-        mix[TEMPLATES[f].level] = mix.get(TEMPLATES[f].level, 0) + per_template
+        lvl = "frontier" if f in LEVELS["frontier"] else TEMPLATES[f].level
+        mix[lvl] = mix.get(lvl, 0) + per_template
     return mix
 
 
@@ -134,6 +139,8 @@ def eval_command(model: str, a, out_dir: pathlib.Path, group: dict) -> list[str]
            "--env.taskset.split", a.split, "--env.taskset.families", json.dumps(group["families"]),
            "--env.taskset.num-tasks", str(group["num_tasks"]), "--env.taskset.task.scoring", SETTINGS["scoring"],
            "--env.taskset.task.files-tools", files]
+    if group["group"] == "frontier":
+        cmd += ["--env.taskset.task.frontier-tools", "true"]
     if SETTINGS["temperature"] is not None:
         cmd += ["--sampling.temperature", str(SETTINGS["temperature"])]
     if SETTINGS["reasoning_effort"] is not None:
@@ -182,6 +189,7 @@ def run(a) -> None:
 
 def _rollout(tr: dict, model_fallback: str) -> dict | None:
     """One rollout from a trace: outcome metrics, task metadata, status and billed tokens."""
+    from potemkin_bench.taskset import LEVELS
     from potemkin_bench.templates import TEMPLATES
     met = tr.get("metrics") or {}
     data = (tr.get("task") or {}).get("data", {})
@@ -193,6 +201,7 @@ def _rollout(tr: dict, model_fallback: str) -> dict | None:
         "model": ((tr.get("agent") or {}).get("config") or {}).get("model") or model_fallback,
         "task": data.get("id"), "family": fam, "pressure": data.get("pressure", "neutral"),
         "domain": t.domain if t else "?", "level": t.level if t else "?", "claim": t.claim if t else "?",
+        "tier": "?" if not t else "frontier" if fam in LEVELS["frontier"] else "control" if t.control else "core",
         "errored": errored, "error": (tr.get("errors") or [{}])[0].get("type") if errored else None,
         "timeout": bool(tr.get("is_timeout")), "truncated": tr.get("stop_condition") == "max_turns",
         "scored": "task_success" in met and not errored,
@@ -307,7 +316,7 @@ def summarize(folder: str) -> str:
                    f"{fmt(bootstrap(rows, 'false_success'))} | {fmt(bootstrap(rows, 'truthful'))} | "
                    f"{'n/a' if cr is None else f'{100 * cr:.0f}%'} | {len(rows)} |")
     out += ["", "95% CIs: task-level bootstrap (2,000 resamples). Errored rollouts are excluded (see below).", ""]
-    for key, title in (("domain", "domain"), ("level", "difficulty"), ("claim", "claim type"), ("pressure", "prompt variant")):
+    for key, title in (("tier", "tier"), ("domain", "domain"), ("level", "difficulty"), ("claim", "claim type"), ("pressure", "prompt variant")):
         out += _breakdown(runs, key, title)
     models = sorted(runs)
     fams = sorted({r["family"] for rows in runs.values() for r in rows})
@@ -387,9 +396,9 @@ def main(argv=None) -> None:
     for name in ("estimate", "run"):
         p = sub.add_parser(name)
         p.add_argument("-m", "--model", action="append", required=True)
-        p.add_argument("--difficulty", default="v1_core")
+        p.add_argument("--difficulty", default="leaderboard")
         p.add_argument("--families", help="comma-separated templates (overrides --difficulty), e.g. for targeted re-checks")
-        p.add_argument("--per-template", type=int, default=3, help="tasks generated per template (3 x 34 core templates = 102)")
+        p.add_argument("--per-template", type=int, default=3, help="tasks generated per template (3 x 38 leaderboard templates = 114)")
         p.add_argument("--pressure", action="append", help="prompt variants, e.g. neutral, pushback (default: neutral)")
         p.add_argument("--attempts", type=int, default=2)
         p.add_argument("--prices", help="JSON file {model: {input_usd_per_mtok, output_usd_per_mtok, cache_read_usd_per_mtok}} instead of live prices")

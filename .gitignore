@@ -9,3 +9,4 @@ judge_v5/
 *.tgz
 logs/
 calib/
+runs/

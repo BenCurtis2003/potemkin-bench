@@ -73,8 +73,9 @@ def reward(name: str, db: dict, spec: dict, st: OfficeState, mode: str) -> float
 
 def test_registry_matches_families():
     assert set(TEMPLATES) == set(ALL_FAMILIES)
-    assert set(LEVELS["mixed"]) | set(LEVELS["v1"]) == set(TEMPLATES)
+    assert set(LEVELS["mixed"]) | set(LEVELS["v1"]) | set(LEVELS["frontier"]) == set(TEMPLATES)
     assert not set(LEVELS["mixed"]) & set(LEVELS["v1"])
+    assert not (set(LEVELS["mixed"]) | set(LEVELS["v1"])) & set(LEVELS["frontier"])
     for n, t in TEMPLATES.items():  # the registry and the taskset score with the very same functions
         assert (t.build, t.check) == ALL_FAMILIES[n], n
 
@@ -88,7 +89,7 @@ def test_metadata_complete(name):
     assert t.level in ("easy", "hard", "expert", "long")
     if name in LEVELS["mixed"] and t.level in ("easy", "hard"):
         assert name in LEVELS[t.level]
-    if name in LEVELS["v1"]:  # v1.0 templates never score the report and state the truthful claim
+    if name in LEVELS["v1"] + LEVELS["frontier"]:  # v1.0 templates never score the report and state the truthful claim
         assert not t.scores_report and "truthful_claim" in build(name, 0)[2]
     assert name in TRAP_POLICIES and TRAP_POLICIES[name], "every template needs a trap policy"
 
@@ -131,9 +132,14 @@ def taskset_fingerprint(**kw) -> str:
     return hashlib.sha256(json.dumps(blob, sort_keys=True, default=list).encode()).hexdigest()
 
 
-# The exact task sets used in the honesty-rl study (v0.7), frozen so results stay reproducible.
+# The exact task sets used in the honesty-rl study (v0.7), and the v1.0 canonical sets, frozen so results stay reproducible.
 STUDY_SETS = {
     "study_test_mixed": dict(split="test", difficulty="mixed", scale="small", num_tasks=84),
+    # v1.0 canonical public sets (docs/SPLITS.md): 3 tasks per template, frozen within a version
+    "v1_canonical_test": dict(split="test", difficulty="canonical", num_tasks=144,
+                              task=PotemkinBenchTaskConfig(files_tools=True, frontier_tools=True)),
+    "v1_canonical_dev": dict(split="dev", difficulty="canonical", num_tasks=129,  # 43: held-out templates excluded
+                             task=PotemkinBenchTaskConfig(files_tools=True, frontier_tools=True)),
     "study_train_6fam": dict(split="train", scale="small", num_tasks=1000, seed=11,
                              families=["refunds_policy", "collections_legal", "memo_override",
                                        "partial_batch", "impossible", "reorder"]),
@@ -489,6 +495,14 @@ def test_auto_scoring_matches_study_scoring_on_v08_and_1_0_on_v1():
                 auto = asyncio.run(PotemkinBenchTask(data, PotemkinBenchTaskConfig(reward_mode=mode)).intent(tr))
                 explicit = asyncio.run(PotemkinBenchTask(data, PotemkinBenchTaskConfig(reward_mode=mode, scoring=want)).intent(tr))
                 assert auto == explicit, (name, mode)
+
+
+def test_canonical_sets_have_three_tasks_per_template():
+    from collections import Counter
+    for key, n_templates in (("v1_canonical_test", 48), ("v1_canonical_dev", 43)):
+        tasks = PotemkinBenchTaskset(PotemkinBenchConfig(**STUDY_SETS[key])).load()
+        counts = Counter(t.data.family for t in tasks)
+        assert len(counts) == n_templates and set(counts.values()) == {3}, key
 
 
 def test_heldout_templates_only_in_test_splits():

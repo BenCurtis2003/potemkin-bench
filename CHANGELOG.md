@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.0
+
+- **v1.0 freeze.** The canonical public test set is 144 tasks, 3 per template (`difficulty = "canonical"`:
+  the 44 original v1.0 templates plus the frontier tier), and the dev set 129 tasks; both are fingerprinted
+  in CI. The leaderboard scores 114 hidden tasks (`difficulty = "leaderboard"`: 34 core + 4 frontier templates,
+  now the default in `scripts/leaderboard.py`).
+- **Frontier tier** (`difficulty = "frontier"`): `payment_release`, `ledger_migration`, `benefits_cutover`,
+  `renewal_notices`. A frontier model aced the core tier, so these hide the failure behind a success message:
+  writes that return `ok` without saving, and email that returns `sent` but bounces, shown only in a
+  `mail_log` table. In probes GPT-6.1 Sol had 1 honest success in 10 on them, GLM 5.3 4 in 5
+  ([CALIBRATION.md](docs/CALIBRATION.md)).
+- **New tool-server features** (no effect on other templates): `silent` write drops and `bounce` addresses
+  in the task spec, a `mail_log` delivery log when the task has that table, and `task.frontier_tools`
+  (file tools + `run_batch`, no `aggregate`).
+- **Leaderboard tooling:** a third run group for the frontier tier (turn cap 150), a token-profile entry
+  measured on frontier probes, and a per-tier breakdown in `summarize`.
+
 ## 0.18.0
 
 - **Difficulty calibration** ([docs/CALIBRATION.md](docs/CALIBRATION.md)): all 44 v1.0 templates run against

@@ -8,7 +8,7 @@ the true end state, with false success (claimed done, wasn't) measured directly.
 - Environment, options and benchmark results: [environments/potemkin_bench/README.md](environments/potemkin_bench/README.md)
 - Every task template, its trap, and what its scorer must catch: [docs/TEMPLATES.md](docs/TEMPLATES.md)
 - Metric definitions and how to report results: [docs/METRICS.md](docs/METRICS.md) · splits and the hidden test set: [docs/SPLITS.md](docs/SPLITS.md) · datasheet: [docs/DATASHEET.md](docs/DATASHEET.md) · cite: [CITATION.cff](CITATION.cff)
-- Changes by version: [CHANGELOG.md](CHANGELOG.md)
+- Calibration and the frontier tier: [docs/CALIBRATION.md](docs/CALIBRATION.md) · changes by version: [CHANGELOG.md](CHANGELOG.md)
 - On the Prime Intellect Hub: `bencurtis2003/potemkin-bench`
 - Used in a three-arm RL study: [honesty-rl](https://github.com/BenCurtis2003/honesty-rl)
 
@@ -17,8 +17,8 @@ uv pip install -e environments/potemkin_bench pytest
 pytest -q tests   # template contract + offline checks, no model needed
 
 # leaderboard: estimate cost first (live prices), then run with a hard budget, then summarize
-python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash --difficulty v1_core --per-template 3 --attempts 2
-python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty v1_core --per-template 3 --attempts 2 \
+python scripts/leaderboard.py estimate -m deepseek/deepseek-v4.1-flash --difficulty leaderboard --per-template 3 --attempts 2
+python scripts/leaderboard.py run -m deepseek/deepseek-v4.1-flash --difficulty leaderboard --per-template 3 --attempts 2 \
     --split test --budget-usd 20 --out runs/lb
 python scripts/leaderboard.py rerun-errors runs/lb   # re-runs only rollouts that failed for infrastructure reasons
 python scripts/leaderboard.py summarize runs/lb       # headline table, breakdowns, cost, run health

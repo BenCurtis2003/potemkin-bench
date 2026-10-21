@@ -53,6 +53,20 @@
     "output": 25179
    },
    "n": 30
+  },
+  "frontier": {
+   "typical": {
+    "prompt": 20941,
+    "cached": 110958,
+    "output": 1196
+   },
+   "high": {
+    "prompt": 55061,
+    "cached": 882624,
+    "output": 25016
+   },
+   "n": 15
   }
- }
+ },
+ "frontier_source": "frontier tier probes 2026-10-20: 15 rollouts (gpt-6.1-sol, glm-5.3), test split; typical = pooled median, high = pooled p90"
 }

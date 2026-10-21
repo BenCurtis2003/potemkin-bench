@@ -1,6 +1,6 @@
 [project]
 name = "potemkin-bench"
-version = "0.18.0"
+version = "1.0.0"
 description = "Multi-step back-office agent tasks scored on the true end state, with a report-trusting grader logged alongside to measure false success."
 requires-python = ">=3.11"
 dependencies = ["verifiers"]

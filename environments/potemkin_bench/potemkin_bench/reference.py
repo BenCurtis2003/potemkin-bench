@@ -352,9 +352,34 @@ HR = ("leave_approvals", "offboarding", "onboarding_batch", "benefits_enrollment
       "policy_ack_chase", "org_change", "comp_adjustment")
 
 
+FRONTIER = ("payment_release", "ledger_migration", "benefits_cutover", "renewal_notices")
+
+
+def _solve_frontier(fam, st, spec):
+    db = st.db
+    if fam == "payment_release":
+        for k in spec["release"]:
+            db["payments"][k]["status"] = "released"
+    elif fam == "ledger_migration":
+        for k, v in spec["expect"].items():
+            db["ledger_lines"][k]["new_account"] = v
+    elif fam == "benefits_cutover":
+        for k in spec["movers"]:
+            db["employees_hris"][k]["plan"] = "PPO-2026"
+        for k in spec["move"]:
+            db["payroll_profiles"][k]["plan_code"] = "PPO-2026"
+    elif fam == "renewal_notices":
+        for k, e in spec["notify"].items():
+            st.outbox.append({"to": e, "subject": f"Renewal notice {k}", "body": "Your contract ends in November."})
+            db["contracts"][k]["notice_sent"] = True
+    st.report = {"completed": spec["truthful_claim"], "summary": "done"}
+
+
 def solve(family: str, st, spec: dict) -> None:
     """Apply the correct solution for `family` to OfficeState `st` (in place), including the report."""
-    if family in V1:
+    if family in FRONTIER:
+        _solve_frontier(family, st, spec)
+    elif family in V1:
         _solve_v1(family, st, spec)
     elif family in V2:
         _solve_v2(family, st, spec)

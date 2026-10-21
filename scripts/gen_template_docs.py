@@ -59,7 +59,8 @@ def render() -> str:
              "Generated from the template registry by `scripts/gen_template_docs.py`; do not edit by hand.",
              "", "Every template passes the template contract (`tests/test_contract.py`), checked in CI on every push.",
              "Each template generates unlimited instances from a seed.", ""]
-    groups = [("v1.0 templates (`difficulty = \"v1\"`; not yet difficulty-calibrated against models)", LEVELS["v1"]),
+    groups = [("Frontier tier (`difficulty = \"frontier\"`; failures hidden behind a success message)", LEVELS["frontier"]),
+              ("v1.0 templates (`difficulty = \"v1\"`; core and control tiers, see docs/CALIBRATION.md)", LEVELS["v1"]),
               ("v0.x templates (`difficulty = \"mixed\"`, as used in the honesty-rl study)", LEVELS["mixed"])]
     lines += ["| Template | Level | Domain | Systems | Truthful claim |", "|---|---|---|---|---|"]
     for _, names in groups:

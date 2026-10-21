@@ -12,16 +12,18 @@ from potemkin_bench.families_v3 import FAMILIES_V3, diagnose
 from potemkin_bench.families_hr import FAMILIES_HR
 from potemkin_bench.families_crm import FAMILIES_CRM
 from potemkin_bench.families_ext import FAMILIES_EXT
+from potemkin_bench.families_frontier import FAMILIES_FRONTIER
 from potemkin_bench.families_it import FAMILIES_IT
 from potemkin_bench.families_proc import FAMILIES_PROC
 from potemkin_bench.families_v4 import FAMILIES_V4
 from potemkin_bench.reference import checklist as reference_checklist
 from potemkin_bench.rewards import checklist_coverage, checklist_reward, honest_partial, judge_pass
 from potemkin_bench.servers.files_tool import PotemkinBenchFilesToolset
+from potemkin_bench.servers.frontier_tool import PotemkinBenchFrontierToolset
 from potemkin_bench.servers.tool import FILES_KEY, OfficeState, PotemkinBenchToolset
 
 ALL_FAMILIES = {**FAMILIES, **FAMILIES_V2, **FAMILIES_V3, **FAMILIES_V4, **FAMILIES_HR, **FAMILIES_IT,
-                **FAMILIES_PROC, **FAMILIES_CRM, **FAMILIES_EXT}
+                **FAMILIES_PROC, **FAMILIES_CRM, **FAMILIES_EXT, **FAMILIES_FRONTIER}
 LEVELS = {
     "easy": list(FAMILIES),
     "hard": list(FAMILIES_V2),
@@ -45,7 +47,11 @@ LEVELS = {
     "v1_control": ["account_hierarchy", "bulk_price_update", "change_freeze", "memo_override@2", "offboarding", "org_change",
                    "po_approval_routing", "postmortem_closeout", "reorder@2", "tax_rate_change"],
     "long": ["employee_transfer_batch", "quarter_close_pipeline", "supplier_exit"],
+    # frontier tier: failures hide behind a success message; needs task.frontier_tools
+    "frontier": list(FAMILIES_FRONTIER),
 }
+LEVELS["leaderboard"] = LEVELS["v1_core"] + LEVELS["frontier"]  # the paid leaderboard run (scripts/leaderboard.py)
+LEVELS["canonical"] = LEVELS["v1"] + LEVELS["frontier"]  # the canonical public test set (docs/SPLITS.md)
 SCALES = {"small": 0.5, "medium": 1.0, "large": 2.5}
 SPLIT_SEED_OFFSET = {"train": 0, "test": 10_000, "dev": 20_000, "hidden": 30_000}
 HIDDEN_SEED_ENV = "POTEMKIN_HIDDEN_SEED"
@@ -100,6 +106,8 @@ class PotemkinBenchTaskConfig(vf.TaskConfig):
     files_tools: bool = False
     """Expose the file tools (list_files, read_file). Off by default so tasks without files keep the
     exact tool list used in the study; tasksets that include file-based templates turn it on."""
+    frontier_tools: bool = False
+    """Expose the file tools plus run_batch (a batch update tool). Needed by frontier-tier templates."""
 
 def expected_claim(family: str, spec: dict) -> bool:
     """Can the request be fully completed? If not, the truthful report is completed=false even
@@ -123,6 +131,8 @@ class PotemkinBenchTask(vf.Task[PotemkinBenchData, OfficeState, PotemkinBenchTas
 
     @classmethod
     def toolsets(cls, config: PotemkinBenchTaskConfig) -> list[vf.Toolset]:
+        if config.frontier_tools:
+            return [PotemkinBenchFrontierToolset(config.tools)]
         if config.files_tools:
             return [PotemkinBenchFilesToolset(config.tools)]
         return [PotemkinBenchToolset(config.tools)]
@@ -132,6 +142,8 @@ class PotemkinBenchTask(vf.Task[PotemkinBenchData, OfficeState, PotemkinBenchTas
         trace.state.files = {p: r["content"] for p, r in self.data.db.get(FILES_KEY, {}).items()}
         trace.state.flaky = list(self.data.spec.get("flaky", []))
         trace.state.locked = list(self.data.spec.get("locked", []))
+        trace.state.silent = dict(self.data.spec.get("silent", {}))
+        trace.state.bounce = dict(self.data.spec.get("bounce", {}))
         trace.state.pushback_remaining = 1 if self.data.pressure == "pushback" else 0
 
     async def finalize(self, trace: vf.Trace, runtime) -> None:
@@ -326,8 +338,11 @@ class PotemkinBenchTaskset(vf.Taskset[PotemkinBenchTask, PotemkinBenchConfig]):
             if not fams:
                 raise ValueError("every requested template is held out of train/dev")
         needs_files = sorted(f for f in set(fams) if "files" in TEMPLATES[f].systems)
-        if needs_files and not self.config.task.files_tools:
+        if needs_files and not (self.config.task.files_tools or self.config.task.frontier_tools):
             raise ValueError(f"{needs_files} read input files: set task.files_tools=true")
+        needs_frontier = sorted(set(fams) & set(LEVELS["frontier"]))
+        if needs_frontier and not self.config.task.frontier_tools:
+            raise ValueError(f"{needs_frontier} are frontier-tier templates: set task.frontier_tools=true")
         tasks = []
         for i in range(self.config.num_tasks):
             family = fams[i % len(fams)]
