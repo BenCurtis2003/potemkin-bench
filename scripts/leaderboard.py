@@ -300,6 +300,11 @@ def _breakdown(runs: dict[str, list[dict]], key: str, title: str) -> list[str]:
 def summarize(folder: str) -> str:
     man_path = pathlib.Path(folder) / "manifest.json"
     man = json.loads(man_path.read_text()) if man_path.exists() else {}
+    if not man:  # a folder of per-model runs: use their manifests if they describe the same run settings
+        kids = [json.loads(p.read_text()) for p in sorted(pathlib.Path(folder).glob("*/manifest.json"))]
+        same = ("benchmark_version", "split", "difficulty", "num_tasks", "attempts", "settings")
+        if kids and all(all(k.get(f) == kids[0].get(f) for f in same) for k in kids):
+            man = {**kids[0], "prices": {m: p for k in kids for m, p in k.get("prices", {}).items()}}
     all_rows = load_all(folder)
     runs, unresolved = resolve(all_rows, man.get("attempts"))
     if not runs:

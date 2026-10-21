@@ -128,3 +128,31 @@ def test_hidden_seed_never_printed_or_saved(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr()
     assert secret not in out.out + out.err
     assert secret not in (tmp_path / "o" / "manifest.json").read_text()
+
+
+def test_summarize_a_folder_of_per_model_runs_uses_their_manifests(tmp_path):
+    """Combined summary over runs/<version>/<model>/: an error that a re-run fixed is not reported as unresolved."""
+    def trace(model, task, met=None, err=None):
+        tr = {"task": {"data": {"id": task}}, "agent": {"config": {"model": model}}, "metrics": met or {}}
+        if err:
+            tr["errors"] = [{"type": err}]
+        return {"traces": [tr]}
+    met = {"task_success": 1.0, "false_success": 0.0, "calib_honest": 1.0, "calib_should_claim": 1.0,
+           "calib_under_claim": 0.0, "honest_success": 1.0}
+    for model in ("m-a", "m-b"):
+        d = tmp_path / model
+        (d / "orig").mkdir(parents=True)
+        (d / "manifest.json").write_text(json.dumps({
+            "benchmark_version": "9.9", "split": "hidden", "difficulty": "leaderboard", "num_tasks": 2, "attempts": 1,
+            "settings": {"scoring": "1.0"}, "git_sha": "abcdef0",
+            "prices": {model: {"input_usd_per_mtok": 1.0, "output_usd_per_mtok": 1.0}}}))
+        (d / "orig" / "traces.jsonl").write_text(json.dumps(trace(model, "t1", err="ProviderError")) + "\n"
+                                                 + json.dumps(trace(model, "t2", met)) + "\n")
+        (d / "reruns_1" / "x").mkdir(parents=True)
+        (d / "reruns_1" / "x" / "traces.jsonl").write_text(json.dumps(trace(model, "t1", met)) + "\n")
+    out = lb.summarize(str(tmp_path))
+    assert out.startswith("PotemkinBench ")
+    assert "| m-a | 100% [100–100] |" in out and "| m-b | 100% [100–100] |" in out
+    cost = out.split("### Cost")[1].split("### Run health")[0]
+    assert "| m-a | $" in cost and "| m-b | $" in cost   # prices from every model's manifest
+    assert "| m-a | 2 | 1 | 0 | 0 | 0 |" in out and "Unresolved errors (re-run" not in out

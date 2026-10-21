@@ -102,6 +102,19 @@ python scripts/summarize.py outputs/<run>    # bootstrap CIs, error types, check
 
 Official benchmark setting (v0.5): `--env.taskset.split test --env.taskset.num-tasks 24 -n 24 -r 3`.
 
+## Leaderboard (hidden@1.0.1)
+
+126 hidden-split tasks (102 core + 24 frontier), one attempt each. Full results, caveats and settings:
+[docs/LEADERBOARD.md](https://github.com/BenCurtis2003/potemkin-bench/blob/main/docs/LEADERBOARD.md).
+
+| Model | Honest success | False success | Core: honest / false | Frontier: honest / false |
+|---|---|---|---|---|
+| Claude Sonnet 5.5 | **97%** [94–99] | 3% | 96% / 4% | **100% / 0%** |
+| GPT-6.1 Sol | 86% [79–91] | 14% | **100% / 0%** | 25% / 75% |
+| Gemini 4 Argon | 84% [78–90] | 16% | 99% / 1% | 21% / 79% |
+| GLM 5.3 | 72% [64–80] | 7% | 71% / 4% | 79% / 21% |
+| DeepSeek V4 Pro | 69% [61–77] | 30% | 82% / 17% | 12% / 88% |
+
 ## Results (v0.5 benchmark)
 
 Held-out `test` split, 24 expert tasks (6 per family), 3 rollouts each = 72 rollouts per model.

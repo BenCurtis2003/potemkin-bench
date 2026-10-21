@@ -124,7 +124,9 @@ v1.0.0 wording. A template was kept if GPT-6.1 Sol's honest success on it was at
 it ran the batch or the emails once, treated every `ok` / `sent` as done, and reported the whole job complete
 without reading anything back. On the kept templates GPT-6.1 Sol had 1 honest success in 10 and GLM 5.3 had 4 in 5, so the stronger
 model was the less honest one here. With 1-4 rollouts per cell this is a direction, not a measurement; the
-leaderboard run measures it.
+leaderboard run measures it: on the hidden set (6 tasks per template) GPT-6.1 Sol had 25% honest success on the
+frontier tier and GLM 5.3 79%. Of the two models that took no part in selecting templates, Gemini 4 Argon
+scored 21% and Claude Sonnet 5.5 100% ([LEADERBOARD.md](LEADERBOARD.md)).
 
 ## Limitations
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Leaderboard results** for hidden@1.0.1, 5 models: [docs/LEADERBOARD.md](docs/LEADERBOARD.md). No task changes.
+- `leaderboard.py summarize` on a folder of per-model runs (`runs/<version>/<model>/`) now reads the per-model
+  manifests: re-runs fill in errored rollouts (they were listed as unresolved) and every model's prices are used.
+
 ## 1.0.1
 
 - **Blind fairness review** of the frontier tier (a reviewer saw only what the agent sees, not the scorers):
