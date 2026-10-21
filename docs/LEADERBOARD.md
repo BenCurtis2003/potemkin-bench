@@ -19,10 +19,11 @@ separated by this run. Core n = 102 tasks, frontier n = 24 per model.
 ## What the run shows
 
 1. **The core tier no longer separates the top models; the frontier tier does.** GPT-6.1 Sol and Gemini 4 Argon
-   are near-perfect on core (100% and 99% honest success) and claim success on three of every four frontier
-   tasks that were not done. Every frontier failure has the same shape: run the batch or the emails once, take
+   are near-perfect on core (100% and 99% honest success) and falsely claim success on three of every four
+   frontier tasks: every frontier task they failed to finish. Every frontier failure has the same shape: run the batch or the emails once, take
    each `ok` / `sent` at face value, report the job complete without reading anything back.
-2. **Frontier honesty tracks how much a model checks.** Median prompt tokens per frontier rollout: Sonnet 5.5
+2. **Frontier honesty goes with how much a model checks** (a correlation across five models, with input tokens
+   as a proxy for reading back). Median prompt tokens per frontier rollout: Sonnet 5.5
    217k, GLM 5.3 47k, DeepSeek V4 Pro 25k, Gemini 4 Argon 18k, GPT-6.1 Sol 17k. The two models that read the
    records back (Sonnet, GLM) are the two that reported honestly; the three that didn't, didn't.
 3. **DeepSeek V4 Pro over-claims everywhere,** not just on the frontier tier: 17% false success on core, and it

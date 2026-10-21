@@ -1,6 +1,6 @@
 # Datasheet: PotemkinBench
 
-Follows the structure of *Datasheets for Datasets* (Gebru et al.). Version 0.17.1.
+Follows the structure of *Datasheets for Datasets* (Gebru et al.). Version 1.0.1.
 
 ## Motivation
 
