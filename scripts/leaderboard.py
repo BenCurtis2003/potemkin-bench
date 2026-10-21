@@ -55,7 +55,8 @@ def version() -> str:
 
 # --- cost estimate ----------------------------------------------------------------------------
 
-def run_groups(difficulty: str, per_template: int, families: list[str] | None = None) -> list[dict]:
+def run_groups(difficulty: str, per_template: int, families: list[str] | None = None,
+               frontier_per_template: int | None = None) -> list[dict]:
     """Split the level's templates into the standard, long-horizon and frontier groups (each run with its own cap)."""
     from potemkin_bench.taskset import LEVELS
     from potemkin_bench.templates import TEMPLATES
@@ -66,19 +67,22 @@ def run_groups(difficulty: str, per_template: int, families: list[str] | None = 
                        ("long", lambda f: TEMPLATES[f].level == "long"), ("frontier", lambda f: f in frontier)):
         group = [f for f in fams if pick(f)]
         if group:
-            out.append({"group": name, "families": group, "num_tasks": per_template * len(group),
+            n = frontier_per_template if name == "frontier" and frontier_per_template else per_template
+            out.append({"group": name, "families": group, "num_tasks": n * len(group),
                         "files": any("files" in TEMPLATES[f].systems for f in group), **SETTINGS["groups"][name]})
     return out
 
 
-def level_mix(difficulty: str, per_template: int, families: list[str] | None = None) -> dict[str, int]:
-    """How many tasks fall in each template level (every template gets per_template tasks)."""
+def level_mix(difficulty: str, per_template: int, families: list[str] | None = None,
+              frontier_per_template: int | None = None) -> dict[str, int]:
+    """How many tasks fall in each template level (per_template tasks per template; frontier-tier templates
+    get frontier_per_template if set)."""
     from potemkin_bench.taskset import LEVELS
     from potemkin_bench.templates import TEMPLATES
     mix: dict[str, int] = {}
     for f in families or LEVELS[difficulty]:
         lvl = "frontier" if f in LEVELS["frontier"] else TEMPLATES[f].level
-        mix[lvl] = mix.get(lvl, 0) + per_template
+        mix[lvl] = mix.get(lvl, 0) + (frontier_per_template if lvl == "frontier" and frontier_per_template else per_template)
     return mix
 
 
@@ -157,11 +161,11 @@ def eval_command(model: str, a, out_dir: pathlib.Path, group: dict) -> list[str]
 def run(a) -> None:
     variants = len(a.pressure or ["neutral"])  # each base task runs once per prompt variant
     fams = a.families.split(",") if a.families else None
-    mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template, fams).items()}
+    mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template, fams, a.frontier_per_template).items()}
     prices = json.loads(pathlib.Path(a.prices).read_text()) if a.prices else live_prices(a.model)
     est = estimate(a.model, prices, mix, a.attempts)
     print_estimate(est, mix, a.attempts)
-    groups = run_groups(a.difficulty, a.per_template, fams)
+    groups = run_groups(a.difficulty, a.per_template, fams, a.frontier_per_template)
     if est["high_usd"] > a.budget_usd:
         raise SystemExit(f"REFUSING: high estimate ${est['high_usd']} exceeds --budget-usd {a.budget_usd}")
     if a.split == "hidden" and not os.environ.get("POTEMKIN_HIDDEN_SEED"):
@@ -173,7 +177,7 @@ def run(a) -> None:
     sha = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     manifest = {"benchmark_version": version(), "git_sha": sha, "date": dt.date.today().isoformat(),
                 "split": a.split, "pressures": a.pressure or ["neutral"], "difficulty": a.difficulty,
-                "per_template": a.per_template, "num_tasks": sum(g["num_tasks"] for g in groups), "attempts": a.attempts,
+                "per_template": a.per_template, "frontier_per_template": a.frontier_per_template, "num_tasks": sum(g["num_tasks"] for g in groups), "attempts": a.attempts,
                 "settings": SETTINGS, "groups": groups, "models": a.model, "prices": {m: prices[m] for m in a.model},
                 "estimate": est}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
@@ -398,7 +402,9 @@ def main(argv=None) -> None:
         p.add_argument("-m", "--model", action="append", required=True)
         p.add_argument("--difficulty", default="leaderboard")
         p.add_argument("--families", help="comma-separated templates (overrides --difficulty), e.g. for targeted re-checks")
-        p.add_argument("--per-template", type=int, default=3, help="tasks generated per template (3 x 38 leaderboard templates = 114)")
+        p.add_argument("--per-template", type=int, default=3, help="tasks generated per template (3 x 34 core templates = 102)")
+        p.add_argument("--frontier-per-template", type=int, default=6,
+                       help="tasks per frontier-tier template (6 x 4 = 24; a bigger sample for the tier with the fewest templates)")
         p.add_argument("--pressure", action="append", help="prompt variants, e.g. neutral, pushback (default: neutral)")
         p.add_argument("--attempts", type=int, default=2)
         p.add_argument("--prices", help="JSON file {model: {input_usd_per_mtok, output_usd_per_mtok, cache_read_usd_per_mtok}} instead of live prices")
@@ -421,7 +427,8 @@ def main(argv=None) -> None:
     a = ap.parse_args(argv)
     if a.cmd == "estimate":
         variants = len(a.pressure or ["neutral"])
-        mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template, a.families.split(",") if a.families else None).items()}
+        mix = {k: v * variants for k, v in level_mix(a.difficulty, a.per_template, a.families.split(",") if a.families else None,
+                                                      a.frontier_per_template).items()}
         prices = json.loads(pathlib.Path(a.prices).read_text()) if a.prices else live_prices(a.model)
         print_estimate(estimate(a.model, prices, mix, a.attempts), mix, a.attempts)
     elif a.cmd == "run":

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1
+
+- **Blind fairness review** of the frontier tier (a reviewer saw only what the agent sees, not the scorers):
+  `ledger_migration` and `benefits_cutover` fair as written; two wording fixes. `payment_release` no longer
+  says "this week's" (approved due dates span two weeks, which conflicted with "every approved payment"), and
+  `renewal_notices` now says resending an undelivered message is fine (the old "one message" read as
+  forbidding it) and that mail_log is written as soon as the relay processes a message. Both generators
+  changed (fingerprints updated); no other task changed.
+- **Leaderboard:** `--frontier-per-template` (default 6), so the hidden set is 126 tasks (102 core + 24
+  frontier). Frontier token profile updated with one hidden-split rehearsal rollout from each of 5 models.
+
 ## 1.0.0
 
 - **v1.0 freeze.** The canonical public test set is 144 tasks, 3 per template (`difficulty = "canonical"`:

@@ -2,8 +2,8 @@
  "task_sets": {
   "study_test_mixed": "93a1a69b4d39da82850d32fe46eddc00a9eaed3a6c6763058dbb6ec0c4d1c46e",
   "study_train_6fam": "2c99e5295f9ede595e7436880b45f106d6f8ff0acb9b114d38182a9d8583979e",
-  "v1_canonical_dev": "6cc729c6fbe8cb49736b94730379661550b0127fc4048deebe11a88b30d5a407",
-  "v1_canonical_test": "c998570b38c3f75685f940eb98b4e9ff03d334b7b570d72d2d730355e92dc7a3"
+  "v1_canonical_dev": "aadcaf11cde118540bf03fa0a5fbb0c59f0040bda2e617e92512228bb0cc6ad4",
+  "v1_canonical_test": "41ca6c43ee5635111001c828a8df156efb69cc7d015c5bd4ec42e46681b16571"
  },
  "templates": {
   "access_request_approvals": "1dee6d4839a70a3daf5f26ca58cba047c72451d812c8603a0d6f6e3d03aec0da",
@@ -43,7 +43,7 @@
   "overdue": "f4a36a42fa343f74ed39f06f90902b87afacb38e3b0c4d68d928a165f8f25a6c",
   "partial_batch": "023807f02ea754234cde2ccd7c5d732387e6ddbf80a26f48622ae286ee1b004e",
   "password_reset_batch": "04abe72985bf7e3f012af54830d30d138571e5b8dc197c8e41b9caa4102a0dee",
-  "payment_release": "859f37469f6d615ed57c2973fcd8619a6d4b9ed8dee90cdb58f8eebd497eb4c8",
+  "payment_release": "0c9d1de9b6ab349342f16f30816592bd82a02b978419d6a62276c303528e8312",
   "payroll": "9370448e83775e880581646447051490bb0475670f0aa6ff7041e7e8b9a07806",
   "po_approval_routing": "bd34f47bd4a7aa9e0875279ae5b81338e018f0dd5e28f08d3e59b70057bf7284",
   "policy_ack_chase": "1625e2f3bdb7ba3abaec8e3a988b99c3e8de6c83d74fd65982b103764871c8a9",
@@ -54,7 +54,7 @@
   "recall_notice": "83237c9feafe5066851c83b1a4d64052557b20f66d84c6b22f45fcccb377fe46",
   "refunds": "c93d1118773725a5147fc18455415a12c212ecdb850a9701ce863fbb6e889057",
   "refunds_policy": "deb54a84ae1c11ece657f261b81a1b154761b8614a8eb95850bd4705c5b4293a",
-  "renewal_notices": "3cf5a66e0628d7ce8180f771bda143864fe2930d18ba5e07a83ca087f2e04048",
+  "renewal_notices": "597bfbae00b8fc007aea088147cb811f9a8ef00c86ca19911a3e98257fc35600",
   "renewal_pipeline": "79bc58a31ee119f90cdfb9c59b8307cc7838be82484b26d94cf3c7e7774f278f",
   "reorder": "02e33c21c7ac07a2d74af865cd9b753b1d511e4766bd8729a0df4be90c1b197b",
   "reorder@2": "559dd75e9a06c4070eaba804f2da42a8954ef45da1bc93b815de4eb6f833f7a3",
@@ -69,5 +69,5 @@
   "vendor_onboarding": "af2b3fca664a1c92dee0355f52b33f582ea9843af25b25b47859a756cca4e39f",
   "vendor_payment_run": "8f6d04c1f8e1893ea9a36be1d6265d83a44ec3f4f4b1e3e52fe58a7bc7821c58"
  },
- "version": "1.0.0"
+ "version": "1.0.1"
 }

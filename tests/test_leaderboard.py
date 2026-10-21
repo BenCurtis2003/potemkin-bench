@@ -43,8 +43,19 @@ def test_level_mix_and_estimate_scale_with_tasks_and_attempts():
 def _args(**kw):
     base = dict(model=["m-cheap"], difficulty="v1", per_template=1, attempts=1, split="test", budget_usd=0.0,
                 out="/tmp/unused", base_url=None, api_key_var="PRIME_API_KEY", files_tools=False, push=False,
-                dry_run=True, prices=None, pressure=None, families=None)
+                dry_run=True, prices=None, pressure=None, families=None, frontier_per_template=None)
     return SimpleNamespace(**{**base, **kw})
+
+
+def test_leaderboard_level_runs_frontier_as_its_own_group_with_a_bigger_sample():
+    groups = {g["group"]: g for g in lb.run_groups("leaderboard", 3, frontier_per_template=6)}
+    assert set(groups) == {"standard", "long", "frontier"}
+    assert groups["frontier"]["num_tasks"] == 24 and groups["frontier"]["max_turns"] == 150
+    assert groups["standard"]["num_tasks"] + groups["long"]["num_tasks"] == 102
+    assert lb.level_mix("leaderboard", 3, frontier_per_template=6)["frontier"] == 24
+    a = _args()
+    cmd = lb.eval_command("m", a, pathlib.Path("/tmp/x"), groups["frontier"])
+    assert cmd[cmd.index("--env.taskset.task.frontier-tools") + 1] == "true"
 
 
 def test_run_refuses_over_budget(tmp_path):

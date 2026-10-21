@@ -56,17 +56,17 @@
   },
   "frontier": {
    "typical": {
-    "prompt": 20941,
-    "cached": 110958,
-    "output": 1196
+    "prompt": 20397,
+    "cached": 65786,
+    "output": 1880
    },
    "high": {
-    "prompt": 55061,
+    "prompt": 69713,
     "cached": 882624,
     "output": 25016
    },
-   "n": 15
+   "n": 20
   }
  },
- "frontier_source": "frontier tier probes 2026-10-20: 15 rollouts (gpt-6.1-sol, glm-5.3), test split; typical = pooled median, high = pooled p90"
+ "frontier_source": "frontier tier probes 2026-10-20/21: 20 rollouts (gpt-6.1-sol, glm-5.3, plus one each from claude-sonnet-5.5, gemini-4-argon, deepseek-v4-pro on the hidden split); typical = pooled median, high = pooled p90"
 }

@@ -23,8 +23,9 @@ v1.0 freezes a public test set of **144 tasks: 3 per template** (`split = "test"
 changes within a version. Anyone can run it, and it covers all 48 v1.0 templates (34 core + 10 control + 4
 frontier). The dev split is frozen the same way (129 tasks: the 43 templates that aren't held out).
 
-The leaderboard scores a separate **hidden set of 114 tasks: 3 per core and frontier template**
-(`difficulty = "leaderboard"`), generated from the secret seed, so it shares templates with the public set but no
+The leaderboard scores a separate **hidden set of 126 tasks: 3 per core template and 6 per frontier template**
+(`difficulty = "leaderboard"`, `--frontier-per-template 6`; the frontier tier has only 4 templates, so it gets a
+bigger sample), generated from the secret seed, so it shares templates with the public set but no
 tasks. The 10 control-tier templates, which both calibration models always solved honestly, are left out of the
 paid run; see [CALIBRATION.md](CALIBRATION.md).
 
