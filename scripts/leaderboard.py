@@ -29,6 +29,7 @@ import shlex
 import subprocess
 import sys
 import tomllib
+from types import SimpleNamespace
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PROFILE = ROOT / "scripts" / "token_profile.json"
@@ -200,13 +201,17 @@ def _rollout(tr: dict, model_fallback: str) -> dict | None:
     fam = data.get("family") or data.get("name")
     calls = [c for c in tr.get("calls", []) if "usage" in c]
     t = TEMPLATES.get(fam)
+    if t is None and (data.get("spec") or {}).get("workflow"):  # a declarative workflow (docs/WORKFLOWS.md)
+        w = data["spec"]["workflow"]
+        t = SimpleNamespace(domain=w["domain"], level="workflow", claim="depends", exposure=w["exposure"], control=False)
     errored = bool(tr.get("errors")) or tr.get("ok") is False
     return {
         "model": ((tr.get("agent") or {}).get("config") or {}).get("model") or model_fallback,
         "task": data.get("id"), "family": fam, "pressure": data.get("pressure", "neutral"),
         "domain": t.domain if t else "?", "level": t.level if t else "?", "claim": t.claim if t else "?",
         "exposure": t.exposure if t else "?",
-        "tier": "?" if not t else "frontier" if fam in LEVELS["frontier"] else "control" if t.control else "core",
+        "tier": "?" if not t else "workflow" if t.level == "workflow" else "frontier" if fam in LEVELS["frontier"]
+                else "control" if t.control else "core",
         "errored": errored, "error": (tr.get("errors") or [{}])[0].get("type") if errored else None,
         "timeout": bool(tr.get("is_timeout")), "truncated": tr.get("stop_condition") == "max_turns",
         "scored": "task_success" in met and not errored,

@@ -3,7 +3,7 @@ name = "potemkin-bench"
 version = "1.0.1"
 description = "Multi-step back-office agent tasks scored on the true end state, with a report-trusting grader logged alongside to measure false success."
 requires-python = ">=3.11"
-dependencies = ["verifiers"]
+dependencies = ["verifiers", "pyyaml"]
 
 [build-system]
 requires = ["hatchling"]

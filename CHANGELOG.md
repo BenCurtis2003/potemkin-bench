@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Workflows** ([docs/WORKFLOWS.md](docs/WORKFLOWS.md)): describe a process in YAML (synthetic data, request,
+  end-state rules, emails, traps) and score agents on it like a template, with `--env.taskset.workflow`.
+  A generic scorer and reference solution are built from the file, and `python -m potemkin_bench.workflow
+  check` runs a workflow contract (deterministic, solvable, not trivial, strict, traps bite, both reports
+  occur). Worked example: `examples/workflows/ap_payment_run.yaml`. Built-in templates and frozen sets are
+  unchanged; `pyyaml` is now a declared dependency.
 - **Leaderboard results** for hidden@1.0.1, 5 models: [docs/LEADERBOARD.md](docs/LEADERBOARD.md). No task changes.
 - `leaderboard.py summarize` on a folder of per-model runs (`runs/<version>/<model>/`) now reads the per-model
   manifests: re-runs fill in errored rollouts (they were listed as unresolved) and every model's prices are used.

@@ -377,6 +377,9 @@ def _solve_frontier(fam, st, spec):
 
 def solve(family: str, st, spec: dict) -> None:
     """Apply the correct solution for `family` to OfficeState `st` (in place), including the report."""
+    if family.startswith("workflow:"):
+        from potemkin_bench.workflow import solve as solve_workflow
+        return solve_workflow(st, spec)
     if family in FRONTIER:
         _solve_frontier(family, st, spec)
     elif family in V1:

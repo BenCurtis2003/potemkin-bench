@@ -163,7 +163,9 @@ class PotemkinBenchTask(vf.Task[PotemkinBenchData, OfficeState, PotemkinBenchTas
 
     def _components(self, trace: vf.Trace) -> dict[str, float]:
         """Checks that make up the score. Under scoring '1.0' the report check is left out."""
-        _, check = ALL_FAMILIES[self.data.family]
+        from potemkin_bench import workflow as wfmod  # imported here so `python -m potemkin_bench.workflow` runs cleanly
+        family = self.data.family
+        check = wfmod.check if family.startswith(wfmod.PREFIX) else ALL_FAMILIES[family][1]
         comp = check(trace.state, self.data.spec)
         if self._scoring() == "1.0":
             comp.pop("honest_report", None)
@@ -316,6 +318,9 @@ class PotemkinBenchConfig(vf.TasksetConfig):
     """Optional: keep only these task ids, after generating the full set as configured (so ids and
     contents match the original run). Used to re-run rollouts that failed for infrastructure reasons."""
     task: PotemkinBenchTaskConfig = PotemkinBenchTaskConfig()
+    workflow: str | None = None
+    """Optional path to a workflow file (YAML/JSON, see docs/WORKFLOWS.md): build `num_tasks` instances of that
+    workflow instead of built-in templates. Scored the same way (scoring '1.0')."""
 
 
 class PotemkinBenchTaskset(vf.Taskset[PotemkinBenchTask, PotemkinBenchConfig]):
@@ -331,6 +336,8 @@ class PotemkinBenchTaskset(vf.Taskset[PotemkinBenchTask, PotemkinBenchConfig]):
                 raise ValueError(f"split 'hidden' needs the {HIDDEN_SEED_ENV} environment variable")
             seed = int(secret)
         rng = random.Random(seed + SPLIT_SEED_OFFSET[split])
+        if self.config.workflow:
+            return self._load_workflow(rng)
         scale = SCALES[self.config.scale]
         fams = self.config.families or LEVELS[self.config.difficulty]
         if split in ("train", "dev"):
@@ -363,7 +370,29 @@ class PotemkinBenchTaskset(vf.Taskset[PotemkinBenchTask, PotemkinBenchConfig]):
                     spec=spec,
                 )
                 tasks.append(PotemkinBenchTask(data, self.config.task))
+        return self._keep(tasks)
+
+    def _keep(self, tasks: list[PotemkinBenchTask]) -> list[PotemkinBenchTask]:
         if self.config.task_ids is not None:
             keep = set(self.config.task_ids)
             tasks = [t for t in tasks if t.data.id in keep]
         return tasks
+
+    def _load_workflow(self, rng: random.Random) -> list[PotemkinBenchTask]:
+        from potemkin_bench import workflow as wfmod
+        wf = wfmod.load(self.config.workflow)
+        need = {"files": self.config.task.files_tools or self.config.task.frontier_tools,
+                "frontier": self.config.task.frontier_tools, "standard": True}[wf.tools]
+        if not need:
+            raise ValueError(f"workflow {wf.name!r} uses the {wf.tools} tools: set task.{wf.tools}_tools=true")
+        if self.config.task.scoring not in ("auto", "1.0"):
+            raise ValueError("workflows are scored with scoring '1.0'")
+        tasks = []
+        for i in range(self.config.num_tasks):
+            prompt, db, spec = wfmod.build(wf, rng)
+            for pressure in self.config.pressures:
+                data = PotemkinBenchData(id=f"{self.config.split}-{wf.name}-{i:03d}-{pressure}", name=wf.family,
+                                         prompt=prompt, system_prompt=SYSTEM_PROMPT + PRESSURE[pressure],
+                                         family=wf.family, pressure=pressure, db=db, spec=spec)
+                tasks.append(PotemkinBenchTask(data, self.config.task))
+        return self._keep(tasks)
