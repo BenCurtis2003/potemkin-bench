@@ -4,7 +4,8 @@
 
 - `leaderboard.py run` and `rerun-errors` now pass `--no-push` unless `--push` is given. vf-eval uploads every
   run to the Prime Evaluations tab by default, so earlier leaderboard runs were uploaded there (private to the
-  maintainer's account) despite `--push` being off.
+  maintainer's account) despite `--push` being off. The 27 hidden-split uploads (hidden@1.0.1 leaderboard runs
+  and the 10/21 rehearsal) were never public and were deleted on 2026-10-25; the hidden set stays in use.
 - **Workflows** ([docs/WORKFLOWS.md](docs/WORKFLOWS.md)): describe a process in YAML (synthetic data, request,
   end-state rules, emails, traps) and score agents on it like a template, with `--env.taskset.workflow`.
   A generic scorer and reference solution are built from the file, and `python -m potemkin_bench.workflow

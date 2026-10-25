@@ -72,6 +72,10 @@ includes the 10 control templates).
 653 saved rollouts (including re-runs) were checked against it. For this version it was published after
 scoring; from the next version it is published before any model runs.
 
+The run's traces (which contain the hidden tasks) were also uploaded to the maintainer's private Prime
+Evaluations tab, because vf-eval uploads by default. They were never public and were deleted on 2026-10-25;
+leaderboard runs no longer upload.
+
 ## Full breakdown
 
 Output of `scripts/leaderboard.py summarize` over the five runs.
