@@ -188,3 +188,10 @@ def test_commit_hidden_prints_neither_seed_nor_salt(tmp_path, capsys):
     assert f"commitment: {lb.commitment('c0ffee' * 10, digest)}" in out and f"· {len(ids)} tasks" in out
     assert lb.hidden_digest("leaderboard", 1, 1, "918273646")[0] != digest   # a different seed, a different set
     assert lb.commitment("other", digest) != lb.commitment("c0ffee" * 10, digest)
+
+
+def test_runs_are_not_uploaded_unless_asked(tmp_path):
+    """vf-eval uploads by default; hidden-split traces contain the hidden tasks."""
+    std = lb.run_groups("leaderboard", 1)[0]
+    assert lb.eval_command("m", _args(), tmp_path, std)[-1] == "--no-push"
+    assert lb.eval_command("m", _args(push=True), tmp_path, std)[-1] == "--push"

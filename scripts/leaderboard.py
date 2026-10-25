@@ -154,8 +154,9 @@ def eval_command(model: str, a, out_dir: pathlib.Path, group: dict) -> list[str]
         cmd += ["--env.taskset.pressures", json.dumps(a.pressure)]
     if a.base_url:
         cmd += ["--client.base-url", a.base_url, "--client.api-key-var", a.api_key_var]
-    if a.push:
-        cmd.append("--push")
+    # vf-eval uploads every run to the Prime Evaluations tab unless told not to; hidden-split traces hold the
+    # hidden tasks, so nothing is uploaded unless --push is given
+    cmd.append("--push" if a.push else "--no-push")
     return cmd
 
 
