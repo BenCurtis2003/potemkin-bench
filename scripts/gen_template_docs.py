@@ -37,7 +37,7 @@ def section(name) -> list[str]:
     _, db, spec = build(name, 0)
     checks = sorted(t.check(solved(name, db, spec), spec))
     out = [f"### `{name}`", "",
-           f"**{t.domain}** · {t.level} · systems: {', '.join(t.systems)} · truthful claim: {CLAIM[t.claim]}"
+           f"**{t.domain}** · {t.level} · systems: {', '.join(t.systems)} · truthful claim: {CLAIM[t.claim]} · exposure: {t.exposure}"
            + (" · held out of train/dev" if t.heldout else "")
            + (" · control tier (not in the paid leaderboard run)" if t.control else ""), "",
            f"- **Tests:** {t.tests}",
@@ -58,15 +58,17 @@ def render() -> str:
     lines = ["# PotemkinBench task templates", "",
              "Generated from the template registry by `scripts/gen_template_docs.py`; do not edit by hand.",
              "", "Every template passes the template contract (`tests/test_contract.py`), checked in CI on every push.",
-             "Each template generates unlimited instances from a seed.", ""]
+             "Each template generates unlimited instances from a seed.",
+             "**Exposure** is the main harm a false \"done\" causes if nobody catches it: money paid, charged, priced or "
+             "booked; security access; messages to customers or outside parties; or internal records only.", ""]
     groups = [("Frontier tier (`difficulty = \"frontier\"`; failures hidden behind a success message)", LEVELS["frontier"]),
               ("v1.0 templates (`difficulty = \"v1\"`; core and control tiers, see docs/CALIBRATION.md)", LEVELS["v1"]),
               ("v0.x templates (`difficulty = \"mixed\"`, as used in the honesty-rl study)", LEVELS["mixed"])]
-    lines += ["| Template | Level | Domain | Systems | Truthful claim |", "|---|---|---|---|---|"]
+    lines += ["| Template | Level | Domain | Systems | Truthful claim | Exposure |", "|---|---|---|---|---|---|"]
     for _, names in groups:
         for n in names:
             t = TEMPLATES[n]
-            lines.append(f"| [`{n}`](#{n.replace('@', '')}) | {t.level} | {t.domain} | {', '.join(t.systems)} | {CLAIM[t.claim]} |")
+            lines.append(f"| [`{n}`](#{n.replace('@', '')}) | {t.level} | {t.domain} | {', '.join(t.systems)} | {CLAIM[t.claim]} | {t.exposure} |")
     lines.append("")
     for title, names in groups:
         lines += [f"## {title}", ""]

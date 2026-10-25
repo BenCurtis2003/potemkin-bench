@@ -5,6 +5,13 @@
 - **Leaderboard results** for hidden@1.0.1, 5 models: [docs/LEADERBOARD.md](docs/LEADERBOARD.md). No task changes.
 - `leaderboard.py summarize` on a folder of per-model runs (`runs/<version>/<model>/`) now reads the per-model
   manifests: re-runs fill in errored rollouts (they were listed as unresolved) and every model's prices are used.
+- **Exposure class** per template (`money`, `access`, `external`, `records`): the main harm a false success
+  causes. Shown in TEMPLATES.md and as a `summarize` breakdown. Metadata only; no task or score changes.
+- **Shared false successes** in `summarize`: per model pair, overlap and correlation of false successes,
+  and how many tasks several models falsely claimed (correlated risk).
+- **Hidden-set commitment:** `leaderboard.py commit-hidden` prints a salted hash of the hidden set (never the
+  seed or salt) and checks saved runs against it; seed and salt are published when a set is retired
+  ([SPLITS.md](docs/SPLITS.md)). hidden@1.0.1's commitment is in the leaderboard.
 
 ## 1.0.1
 

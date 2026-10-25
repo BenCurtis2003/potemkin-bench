@@ -36,7 +36,7 @@ from potemkin_bench.servers.tool import FILES_KEY, OfficeState
 from potemkin_bench.taskset import (ALL_FAMILIES, LEVELS, PotemkinBenchConfig, PotemkinBenchData,
                                     PotemkinBenchTask, PotemkinBenchTaskConfig, PotemkinBenchTaskset,
                                     expected_claim)
-from potemkin_bench.templates import CLAIMS, DOMAINS, SYSTEMS, TEMPLATES
+from potemkin_bench.templates import CLAIMS, DOMAINS, EXPOSURE, EXPOSURES, SYSTEMS, TEMPLATES
 
 SEEDS = range(20)
 NAMES = sorted(TEMPLATES)
@@ -78,12 +78,16 @@ def test_registry_matches_families():
     assert not (set(LEVELS["mixed"]) | set(LEVELS["v1"])) & set(LEVELS["frontier"])
     for n, t in TEMPLATES.items():  # the registry and the taskset score with the very same functions
         assert (t.build, t.check) == ALL_FAMILIES[n], n
+    listed = [n for names in EXPOSURE.values() for n in names]
+    assert set(listed) <= set(TEMPLATES) and len(listed) == len(set(listed)), "EXPOSURE names a template twice or not at all"
 
 
 @pytest.mark.parametrize("name", NAMES)
 def test_metadata_complete(name):
     t = TEMPLATES[name]
-    assert t.domain in DOMAINS and t.claim in CLAIMS
+    assert t.domain in DOMAINS and t.claim in CLAIMS and t.exposure in EXPOSURES
+    if t.exposure == "external":  # harm to outside parties comes through messages
+        assert "email" in t.systems, name
     assert t.systems and set(t.systems) <= set(SYSTEMS) and "database" in t.systems
     assert len(t.tests) > 20 and len(t.trap) > 20
     assert t.level in ("easy", "hard", "expert", "long")

@@ -205,6 +205,7 @@ def _rollout(tr: dict, model_fallback: str) -> dict | None:
         "model": ((tr.get("agent") or {}).get("config") or {}).get("model") or model_fallback,
         "task": data.get("id"), "family": fam, "pressure": data.get("pressure", "neutral"),
         "domain": t.domain if t else "?", "level": t.level if t else "?", "claim": t.claim if t else "?",
+        "exposure": t.exposure if t else "?",
         "tier": "?" if not t else "frontier" if fam in LEVELS["frontier"] else "control" if t.control else "core",
         "errored": errored, "error": (tr.get("errors") or [{}])[0].get("type") if errored else None,
         "timeout": bool(tr.get("is_timeout")), "truncated": tr.get("stop_condition") == "max_turns",
@@ -297,6 +298,53 @@ def _breakdown(runs: dict[str, list[dict]], key: str, title: str) -> list[str]:
     return lines + [""]
 
 
+def _pearson(x: list[float], y: list[float]) -> float | None:
+    n = len(x)
+    mx, my = sum(x) / n, sum(y) / n
+    sxy = sum((a - mx) * (b - my) for a, b in zip(x, y))
+    sxx, syy = sum((a - mx) ** 2 for a in x), sum((b - my) ** 2 for b in y)
+    return None if not sxx or not syy else sxy / (sxx * syy) ** 0.5
+
+
+def shared_failures(runs: dict[str, list[dict]]) -> list[str]:
+    """How often models falsely claim success on the same tasks: one model's failures predicting another's is
+    correlated risk (one weakness hitting every deployment at once). Uses tasks every model has a scored run on;
+    with several attempts, a task counts as a false success for a model if most of its attempts were."""
+    models = sorted(runs)
+    if len(models) < 2:
+        return []
+    per = {m: {} for m in models}
+    for m in models:
+        by_task: dict[str, list[float]] = {}
+        for r in runs[m]:
+            by_task.setdefault(r["task"], []).append(r["false_success"])
+        per[m] = {t: sum(v) / len(v) for t, v in by_task.items()}
+    tasks = sorted(set.intersection(*(set(per[m]) for m in models)))
+    if not tasks:
+        return []
+    fs = {m: [per[m][t] for t in tasks] for m in models}
+    hit = {m: {t for t in tasks if per[m][t] > 0.5} for m in models}
+    lines = ["### Shared false successes", "",
+             f"Over the {len(tasks)} tasks every model ran. Cell: of the row model's false successes, the share the column "
+             "model also falsely claimed (n = row model's count), then the correlation of the two models' per-task false success.", "",
+             "| Model | " + " | ".join(models) + " |", "|---|" + "---|" * len(models)]
+    for a in models:
+        cells = []
+        for b in models:
+            if a == b:
+                cells.append(f"n={len(hit[a])}")
+                continue
+            share = "-" if not hit[a] else f"{100 * len(hit[a] & hit[b]) / len(hit[a]):.0f}%"
+            r = _pearson(fs[a], fs[b])
+            cells.append(f"{share} (r={'n/a' if r is None else f'{r:.2f}'})")
+        lines.append(f"| {a} | " + " | ".join(cells) + " |")
+    counts = [sum(t in hit[m] for m in models) for t in tasks]
+    lines += ["", "| Models falsely claiming the same task | " + " | ".join(str(k) for k in range(len(models) + 1)) + " |",
+              "|---|" + "---|" * (len(models) + 1),
+              "| Tasks | " + " | ".join(str(counts.count(k)) for k in range(len(models) + 1)) + " |", ""]
+    return lines
+
+
 def summarize(folder: str) -> str:
     man_path = pathlib.Path(folder) / "manifest.json"
     man = json.loads(man_path.read_text()) if man_path.exists() else {}
@@ -325,7 +373,8 @@ def summarize(folder: str) -> str:
                    f"{fmt(bootstrap(rows, 'false_success'))} | {fmt(bootstrap(rows, 'truthful'))} | "
                    f"{'n/a' if cr is None else f'{100 * cr:.0f}%'} | {len(rows)} |")
     out += ["", "95% CIs: task-level bootstrap (2,000 resamples). Errored rollouts are excluded (see below).", ""]
-    for key, title in (("tier", "tier"), ("domain", "domain"), ("level", "difficulty"), ("claim", "claim type"), ("pressure", "prompt variant")):
+    for key, title in (("tier", "tier"), ("domain", "domain"), ("level", "difficulty"), ("claim", "claim type"), ("exposure", "exposure"),
+                       ("pressure", "prompt variant")):
         out += _breakdown(runs, key, title)
     models = sorted(runs)
     fams = sorted({r["family"] for rows in runs.values() for r in rows})
@@ -339,6 +388,7 @@ def summarize(folder: str) -> str:
                                              f"{100 * sum(r['false_success'] for r in sub) / len(sub):.0f}%")
         out.append(f"| {f} | " + " | ".join(cells) + " |")
     out.append("")
+    out += shared_failures(runs)
     if any(r["caved"] is not None for rows in runs.values() for r in rows):
         out += ["### Pushback", "", "| Model | Caved to pressure | Pushback received |", "|---|---|---|"]
         for model in sorted(runs):
@@ -399,6 +449,60 @@ def rerun_errors(a) -> None:
                     subprocess.run(cmd, check=True)
 
 
+# --- hidden-set commitment -------------------------------------------------------------------
+
+def hidden_digest(difficulty: str, per_template: int, frontier_per_template: int | None, seed: str) -> tuple[str, list[str]]:
+    """SHA-256 of the hidden tasks a leaderboard run with these settings scores (ids, prompts, data, scoring
+    spec; same form as the frozen public-set fingerprints), and their ids. The seed is used only in-process."""
+    import hashlib
+    from potemkin_bench.taskset import HIDDEN_SEED_ENV, PotemkinBenchConfig, PotemkinBenchTaskConfig, PotemkinBenchTaskset
+    old = os.environ.get(HIDDEN_SEED_ENV)
+    os.environ[HIDDEN_SEED_ENV] = seed
+    try:
+        blob, ids = [], []
+        for g in run_groups(difficulty, per_template, None, frontier_per_template):
+            cfg = PotemkinBenchConfig(split="hidden", families=g["families"], num_tasks=g["num_tasks"],
+                                      task=PotemkinBenchTaskConfig(files_tools=True, frontier_tools=g["group"] == "frontier"))
+            for t in PotemkinBenchTaskset(cfg).load():
+                blob.append((t.data.id, t.data.prompt, t.data.system_prompt, t.data.db, t.data.spec))
+                ids.append(t.data.id)
+    finally:
+        if old is None:
+            os.environ.pop(HIDDEN_SEED_ENV, None)
+        else:
+            os.environ[HIDDEN_SEED_ENV] = old
+    return hashlib.sha256(json.dumps(blob, sort_keys=True, default=list).encode()).hexdigest(), ids
+
+
+def commitment(salt: str, digest: str) -> str:
+    """Published before scoring. The salt (kept private with the seed) stops anyone recovering the seed by
+    trying seeds until the hash matches; publishing seed and salt when the set is retired lets anyone check."""
+    import hashlib
+    return hashlib.sha256(f"potemkin-hidden-v1:{salt}:{digest}".encode()).hexdigest()
+
+
+def commit_hidden(a) -> None:
+    seed_file = pathlib.Path(a.seed_file) if a.seed_file else HIDDEN_SEED_FILE
+    salt_file = pathlib.Path(a.salt_file) if a.salt_file else HIDDEN_SEED_FILE.with_name(f"hidden_salt_{version()}")
+    if not seed_file.exists():
+        raise SystemExit(f"no seed file at {seed_file}")
+    if not salt_file.exists():
+        if a.salt_file:
+            raise SystemExit(f"no salt file at {salt_file}")
+        import secrets
+        salt_file.write_text(secrets.token_hex(32) + "\n")
+        salt_file.chmod(0o600)
+        print(f"created a new salt at {salt_file} (private: back it up with the seed)")
+    digest, ids = hidden_digest(a.difficulty, a.per_template, a.frontier_per_template, seed_file.read_text().strip())
+    print(f"hidden@{version()} · {a.difficulty} · {a.per_template} per template · {a.frontier_per_template} per frontier "
+          f"template · {len(ids)} tasks")
+    print(f"commitment: {commitment(salt_file.read_text().strip(), digest)}")
+    if a.check_runs:  # the committed set is the set the saved runs scored
+        ran = {r["task"] for r in load_all(a.check_runs)}
+        print(f"saved runs: {len(ran)} task ids; in the committed set: {len(ran & set(ids))}; "
+              f"committed but not run: {len(set(ids) - ran)}")
+
+
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -429,6 +533,13 @@ def main(argv=None) -> None:
     r.add_argument("--base-url")
     r.add_argument("--api-key-var", default="PRIME_API_KEY")
     r.add_argument("--dry-run", action="store_true")
+    c = sub.add_parser("commit-hidden", help="print the hidden set's commitment hash (never the seed or salt)")
+    c.add_argument("--difficulty", default="leaderboard")
+    c.add_argument("--per-template", type=int, default=3)
+    c.add_argument("--frontier-per-template", type=int, default=6)
+    c.add_argument("--seed-file", help=f"default {HIDDEN_SEED_FILE}; to verify a retired set, its published seed")
+    c.add_argument("--salt-file", help="default: hidden_salt_<version> next to the seed (created if missing)")
+    c.add_argument("--check-runs", help="folder of saved runs: confirm they scored exactly the committed tasks")
     a = ap.parse_args(argv)
     if a.cmd == "estimate":
         variants = len(a.pressure or ["neutral"])
@@ -440,6 +551,8 @@ def main(argv=None) -> None:
         run(a)
     elif a.cmd == "rerun-errors":
         rerun_errors(a)
+    elif a.cmd == "commit-hidden":
+        commit_hidden(a)
     else:
         print(summarize(a.folder))
 

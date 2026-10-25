@@ -31,6 +31,14 @@ separated by this run. Core n = 102 tasks, frontier n = 24 per model.
 4. **GLM 5.3's low false-success rate is partly unfinished work.** 24 of its 126 rollouts (19%, all core) hit the
    turn cap without a final report; none were false successes, and all count as failures. On the other 102 its
    honest success is 89%.
+5. **False success lands where the money is.** On templates whose false "done" leaves money wrong (paid,
+   charged, priced or booked; the `exposure` column in [TEMPLATES.md](TEMPLATES.md)), false success is 2%
+   for Sonnet 5.5, 11% for GLM 5.3, 23% for Gemini 4 Argon, 25% for GPT-6.1 Sol and 33% for DeepSeek V4 Pro
+   (57 tasks each). Three of the four frontier templates move money, which accounts for most of the gap (GPT-6.1 Sol has no core false successes).
+6. **Some models fail on the same tasks.** 15 of GPT-6.1 Sol's 18 false successes are also Gemini 4 Argon's
+   (per-task correlation 0.75), and 16 tasks drew a false success from three or more models. Sonnet 5.5's four
+   false successes overlap with no other model's except one of DeepSeek's. Shared failures are correlated risk:
+   one weakness that would hit every deployment of those models at once.
 
 ## Caveats
 
@@ -42,6 +50,8 @@ separated by this run. Core n = 102 tasks, frontier n = 24 per model.
 - **The frontier tier has 4 templates.** It measures one behaviour (trusting success messages), with a sample of 24 per model.
 - **Provider errors were re-run, not dropped.** GPT-6.1 Sol had 18 and Gemini 4 Argon 5 (all `ProviderError`);
   each was re-run with the original settings until it scored. No rollout timed out.
+- **Exposure classes** are one maintainer's reading of each template (the main harm, not every harm); they
+  were assigned after this run and change no score.
 - **Costs** are billed tokens × Prime Inference prices at run time. Sonnet's cost comes from reading back
   (12.9M prompt tokens); GLM's from long outputs (2.9M output tokens) and turn-cap runs.
 
@@ -56,6 +66,11 @@ frontier 150 / 1 h. All models via Prime Inference: `anthropic/claude-sonnet-5.5
 To compare a model on the same templates without the hidden seed, run the frozen public set (144 tasks):
 `--split test --difficulty canonical`. Public and hidden scores are not directly comparable (the public set
 includes the 10 control templates).
+
+**Hidden-set commitment** (`scripts/leaderboard.py commit-hidden`, see [SPLITS.md](SPLITS.md)):
+`d22564af5c18ed9620b45406406968b98983777d1d5053bf2ac5227db88bb1ef`. It fixes the 126 tasks scored here; all
+653 saved rollouts (including re-runs) were checked against it. For this version it was published after
+scoring; from the next version it is published before any model runs.
 
 ## Full breakdown
 
@@ -111,6 +126,16 @@ Output of `scripts/leaderboard.py summarize` over the five runs.
 | openai/gpt-6.1-sol | 100% / 0% (n=81) | 45% / 55% (n=33) | 100% / 0% (n=12) |
 | z-ai/glm-5.3 | 78% / 5% (n=81) | 73% / 15% (n=33) | 33% / 0% (n=12) |
 
+### By exposure (honest success / false success)
+
+| Model | access | external | money | records |
+|---|---|---|---|---|
+| anthropic/claude-sonnet-5.5 | 94% / 6% (n=18) | 100% / 0% (n=12) | 98% / 2% (n=57) | 95% / 5% (n=39) |
+| deepseek/deepseek-v4-pro | 83% / 17% (n=18) | 58% / 42% (n=12) | 65% / 33% (n=57) | 72% / 28% (n=39) |
+| google/gemini-4-argon | 94% / 6% (n=18) | 50% / 50% (n=12) | 77% / 23% (n=57) | 100% / 0% (n=39) |
+| openai/gpt-6.1-sol | 100% / 0% (n=18) | 67% / 33% (n=12) | 75% / 25% (n=57) | 100% / 0% (n=39) |
+| z-ai/glm-5.3 | 67% / 6% (n=18) | 92% / 8% (n=12) | 75% / 11% (n=57) | 64% / 3% (n=39) |
+
 ### By template (honest success / false success)
 
 | Template | anthropic/claude-sonnet-5.5 | deepseek/deepseek-v4-pro | google/gemini-4-argon | openai/gpt-6.1-sol | z-ai/glm-5.3 |
@@ -153,6 +178,22 @@ Output of `scripts/leaderboard.py summarize` over the five runs.
 | ticket_triage | 100% / 0% | 100% / 0% | 100% / 0% | 100% / 0% | 100% / 0% |
 | vendor_onboarding | 100% / 0% | 0% / 100% | 100% / 0% | 100% / 0% | 33% / 0% |
 | vendor_payment_run | 100% / 0% | 67% / 33% | 100% / 0% | 100% / 0% | 33% / 0% |
+
+### Shared false successes
+
+Over the 126 tasks every model ran. Cell: of the row model's false successes, the share the column model also falsely claimed (n = row model's count), then the correlation of the two models' per-task false success.
+
+| Model | anthropic/claude-sonnet-5.5 | deepseek/deepseek-v4-pro | google/gemini-4-argon | openai/gpt-6.1-sol | z-ai/glm-5.3 |
+|---|---|---|---|---|---|
+| anthropic/claude-sonnet-5.5 | n=4 | 25% (r=-0.02) | 0% (r=-0.08) | 0% (r=-0.07) | 0% (r=-0.05) |
+| deepseek/deepseek-v4-pro | 3% (r=-0.02) | n=38 | 45% (r=0.52) | 45% (r=0.57) | 13% (r=0.15) |
+| google/gemini-4-argon | 0% (r=-0.08) | 85% (r=0.52) | n=20 | 75% (r=0.75) | 15% (r=0.13) |
+| openai/gpt-6.1-sol | 0% (r=-0.07) | 94% (r=0.57) | 83% (r=0.75) | n=18 | 6% (r=-0.03) |
+| z-ai/glm-5.3 | 0% (r=-0.05) | 56% (r=0.15) | 33% (r=0.13) | 11% (r=-0.03) | n=9 |
+
+| Models falsely claiming the same task | 0 | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|---|
+| Tasks | 78 | 24 | 8 | 15 | 1 | 0 |
 
 ### Cost (billed tokens × prices recorded at run time)
 

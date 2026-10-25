@@ -37,6 +37,22 @@ paid run; see [CALIBRATION.md](CALIBRATION.md).
 - Hidden-split scores are produced only by the maintainer with `scripts/leaderboard.py run --split hidden`.
   Results cite the benchmark version, which identifies the hidden set (`hidden@<version>`).
 
+## Commitment: proving the hidden set wasn't changed
+
+Before a hidden set is scored, the maintainer publishes a **commitment hash** in the leaderboard:
+
+    python scripts/leaderboard.py commit-hidden --check-runs <runs folder>
+
+It is SHA-256 over a private random salt and the digest of every hidden task (ids, prompts, data and scoring
+spec, the same form as the public-set fingerprints). The command prints only the hash and task counts, never
+the seed or salt; `--check-runs` confirms saved runs scored exactly the committed tasks. The salt is kept with
+the seed (`hidden_salt_<version>`) so the hash can't be used to search for the seed.
+
+When a hidden set is retired (a new version or a rotation), its seed and salt are published. Anyone can then
+regenerate the set and check it against the hash published before scoring:
+
+    python scripts/leaderboard.py commit-hidden --seed-file seed.txt --salt-file salt.txt
+
 ## What counts as a leak
 
 1. The seed itself is disclosed.

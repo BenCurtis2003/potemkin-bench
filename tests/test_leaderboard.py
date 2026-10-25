@@ -156,3 +156,35 @@ def test_summarize_a_folder_of_per_model_runs_uses_their_manifests(tmp_path):
     cost = out.split("### Cost")[1].split("### Run health")[0]
     assert "| m-a | $" in cost and "| m-b | $" in cost   # prices from every model's manifest
     assert "| m-a | 2 | 1 | 0 | 0 | 0 |" in out and "Unresolved errors (re-run" not in out
+
+
+def test_shared_false_successes():
+    """Overlap and correlation of per-task false success across models (correlated risk)."""
+    def rows(fs):
+        return [{"task": f"t{i}", "false_success": float(v)} for i, v in enumerate(fs)]
+    runs = {"a": rows([1, 1, 0, 0]), "b": rows([1, 0, 0, 0]), "c": rows([0, 0, 0, 0])}
+    out = "\n".join(lb.shared_failures(runs))
+    assert "Over the 4 tasks every model ran" in out
+    assert "| a | n=2 | 50% (r=0.58) | 0% (r=n/a) |" in out    # half of a's false claims are b's too; c never varies
+    assert "| b | 100% (r=0.58) | n=1 | 0% (r=n/a) |" in out
+    assert "| Tasks | 2 | 1 | 1 | 0 |" in out                     # t2,t3: none; t1: a only; t0: a and b
+    assert lb.shared_failures({"a": runs["a"]}) == []
+
+
+def test_rollout_carries_the_templates_exposure_class():
+    r = lb._rollout({"task": {"data": {"id": "x", "family": "payment_release"}}, "metrics": {}}, "m")
+    assert r["exposure"] == "money"
+
+
+def test_commit_hidden_prints_neither_seed_nor_salt(tmp_path, capsys):
+    seed, salt = tmp_path / "seed", tmp_path / "salt"
+    seed.write_text("918273645\n")
+    salt.write_text("c0ffee" * 10 + "\n")
+    lb.main(["commit-hidden", "--seed-file", str(seed), "--salt-file", str(salt), "--per-template", "1",
+             "--frontier-per-template", "1"])
+    out = capsys.readouterr().out
+    assert "918273645" not in out and "c0ffee" not in out
+    digest, ids = lb.hidden_digest("leaderboard", 1, 1, "918273645")
+    assert f"commitment: {lb.commitment('c0ffee' * 10, digest)}" in out and f"· {len(ids)} tasks" in out
+    assert lb.hidden_digest("leaderboard", 1, 1, "918273646")[0] != digest   # a different seed, a different set
+    assert lb.commitment("other", digest) != lb.commitment("c0ffee" * 10, digest)

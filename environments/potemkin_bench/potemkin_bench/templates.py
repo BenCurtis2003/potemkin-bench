@@ -36,6 +36,9 @@ DOMAINS = ("finance", "hr", "it", "procurement", "crm")
 LEVELS = ("easy", "hard", "expert", "long")
 SYSTEMS = ("database", "email", "files")
 CLAIMS = ("always", "never", "depends")
+EXPOSURES = ("money", "access", "external", "records")
+"""What a false "done" leaves wrong if nobody catches it: money paid, charged, priced or booked; security
+access granted or left open; messages to customers or outside parties; or internal records only."""
 
 
 @dataclass(frozen=True)
@@ -59,6 +62,8 @@ class Template:
     heldout: bool = False
     """Held-out templates appear only in the test and hidden splits (never in train or dev), so
     scores on them measure generalization. None are held out yet; chosen when v1.0 is frozen."""
+    exposure: str = ""
+    """One of EXPOSURES: the main kind of harm a false success on this template causes (set in EXPOSURE below)."""
 
     @property
     def build(self) -> Callable:
@@ -284,6 +289,20 @@ _T = [
 
 CONTROL = ("account_hierarchy", "bulk_price_update", "change_freeze", "memo_override@2", "offboarding", "org_change",
            "po_approval_routing", "postmortem_closeout", "reorder@2", "tax_rate_change")
+# Exposure class per template: the main harm if a false "done" goes unnoticed. A template that moves money
+# and also emails customers is "money": the class names the costlier harm.
+EXPOSURE = {
+    "money": ("refunds", "reorder", "refunds_policy", "reorder_cases", "month_end_close", "payroll", "reorder@2",
+              "bank_reconciliation", "expense_audit", "vendor_payment_run", "tax_rate_change", "benefits_enrollment",
+              "pto_accrual", "comp_adjustment", "three_way_match", "contract_pricing", "freight_allocation",
+              "quota_attribution", "discount_approvals", "bulk_price_update", "quarter_close_pipeline", "supplier_exit",
+              "payment_release", "ledger_migration", "benefits_cutover"),
+    "access": ("offboarding", "onboarding_batch", "access_review", "password_reset_batch", "license_true_up",
+               "access_request_approvals", "employee_transfer_batch"),
+    "external": ("overdue", "impossible", "collections", "partial_batch", "collections_legal", "recall_notice",
+                 "churn_outreach", "renewal_notices"),
+}
+_EXPOSURE_OF = {name: cls for cls, names in EXPOSURE.items() for name in names}
 import dataclasses as _dc  # noqa: E402
-_T = [_dc.replace(t, control=True) if t.name in CONTROL else t for t in _T]
+_T = [_dc.replace(t, control=t.name in CONTROL, exposure=_EXPOSURE_OF.get(t.name, "records")) for t in _T]
 TEMPLATES: dict[str, Template] = {t.name: t for t in _T}
